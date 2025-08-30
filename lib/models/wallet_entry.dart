@@ -19,6 +19,7 @@ class WalletEntry extends HiveObject {
   @HiveField(12) final String hint3;
   @HiveField(13) final DateTime createdAt;
   @HiveField(14) final int version;
+  @HiveField(15) final bool isDefault;
 
   WalletEntry({
     required this.id,
@@ -36,8 +37,15 @@ class WalletEntry extends HiveObject {
     required this.hint3,
     required this.createdAt,
     required this.version,
+    this.isDefault = false,
   });
 
+  static WalletEntry? tryFrom(dynamic v) {
+    if (v == null) return null;
+    if (v is WalletEntry) return v;
+    if (v is Map) return WalletEntry.fromJson(Map<String, dynamic>.from(v));
+    return null;
+  }
   Map<String, dynamic> toJson() => {
     'id': id,
     'addressBase58': addressBase58,
@@ -53,7 +61,8 @@ class WalletEntry extends HiveObject {
     'hint2': hint2,
     'hint3': hint3,
     'createdAt': createdAt.toIso8601String(),
-    'version': version,
+    'version': version,   
+    'isDefault': isDefault,
   };
 
   factory WalletEntry.fromJson(Map<String, dynamic> j) => WalletEntry(
@@ -127,4 +136,5 @@ class WalletEntryAdapter extends TypeAdapter<WalletEntry> {
       ..writeByte(13)..write(obj.createdAt)
       ..writeByte(14)..write(obj.version);
   }
+  
 }

@@ -31,7 +31,8 @@ class _TransferPageState extends State<TransferPage> {
   @override
   void initState() {
     super.initState();
-    _entry = Hive.box<WalletEntry>('wallets').get(widget.walletId);
+    final box = Hive.box('wallets');
+    _entry = WalletEntry.tryFrom(box.get(widget.walletId));
   }
 
   @override
@@ -49,9 +50,7 @@ class _TransferPageState extends State<TransferPage> {
           children: [
             TextField(
               controller: _to,
-              decoration: const InputDecoration(
-                labelText: '收款地址（TRON 地址，T 开头或 0x41...）',
-              ),
+              decoration: const InputDecoration(labelText: '收款地址（TRON 地址）'),
             ),
             const SizedBox(height: 8),
             TextField(
@@ -64,12 +63,7 @@ class _TransferPageState extends State<TransferPage> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    icon: _busy
-                        ? const SizedBox(
-                            width: 18, height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.send),
+                    icon: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send),
                     label: const Text('转账 USDT'),
                     onPressed: _busy ? null : () => _send(AssetType.usdt),
                   ),
@@ -92,8 +86,7 @@ class _TransferPageState extends State<TransferPage> {
               obscureText: true,
               decoration: InputDecoration(
                 labelText: '密码1',
-                helperText:
-                    (hint1 != null && hint1.isNotEmpty) ? '提示：$hint1' : null,
+                helperText: (hint1 != null && hint1.isNotEmpty) ? '提示：$hint1' : null,
                 suffixIcon: const Icon(Icons.lock_outline),
               ),
             ),
@@ -103,8 +96,7 @@ class _TransferPageState extends State<TransferPage> {
               obscureText: true,
               decoration: InputDecoration(
                 labelText: '密码2',
-                helperText:
-                    (hint2 != null && hint2.isNotEmpty) ? '提示：$hint2' : null,
+                helperText: (hint2 != null && hint2.isNotEmpty) ? '提示：$hint2' : null,
                 suffixIcon: const Icon(Icons.lock_outline),
               ),
             ),
@@ -114,8 +106,7 @@ class _TransferPageState extends State<TransferPage> {
               obscureText: true,
               decoration: InputDecoration(
                 labelText: '密码3',
-                helperText:
-                    (hint3 != null && hint3.isNotEmpty) ? '提示：$hint3' : null,
+                helperText: (hint3 != null && hint3.isNotEmpty) ? '提示：$hint3' : null,
                 suffixIcon: const Icon(Icons.lock_outline),
               ),
             ),
@@ -129,16 +120,12 @@ class _TransferPageState extends State<TransferPage> {
     final toInput = _to.text.trim();
     final amountText = _amount.text.trim();
     if (toInput.isEmpty || amountText.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请输入收款地址和金额')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请输入收款地址和金额')));
       return;
     }
     final amount = (double.tryParse(amountText) ?? 0);
     if (amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('金额不正确')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('金额不正确')));
       return;
     }
 
@@ -160,7 +147,7 @@ class _TransferPageState extends State<TransferPage> {
         iterations: e.pbkdf2Iterations,
       );
 
-      final to = _client.normalizeToBase58(toInput);
+      final to = TronClient(endpoint: '').normalizeToBase58(toInput);
 
       Map<String, dynamic> tx;
       if (asset == AssetType.usdt) {
@@ -182,15 +169,11 @@ class _TransferPageState extends State<TransferPage> {
       final txid = await _client.broadcastTransaction(signed);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已广播: $txid')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已广播: $txid')));
       Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('发送失败: $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('发送失败: $e')));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
