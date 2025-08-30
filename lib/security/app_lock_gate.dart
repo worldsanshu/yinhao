@@ -29,23 +29,13 @@ class AppLockGate extends StatelessWidget {
         final onboarded = data['onboarded'] ?? false;
         final hasPin = data['hasPin'] ?? false;
 
-        // 关键：始终根据 AppLockController 的 unlocked 切换，
-        // 即使在首次(onboarded=false)也能在设置成功后直接进入 child。
+        if (!onboarded) return const AppLockSetupPage(); // 首启必定设置
+        if (!hasPin)   return const AppLockSetupPage();  // 异常兜底
+
         return AnimatedBuilder(
           animation: AppLockController.instance,
-          builder: (_, __) {
-            final unlocked = AppLockController.instance.unlocked;
-            if (!onboarded) {
-              // 首启：未设置 -> Setup；一旦 unlocked=true（设置完成），直接进入 child。
-              return unlocked ? child : const AppLockSetupPage();
-            }
-            if (!hasPin) {
-              // 已 on-board 但无 Pin（异常），进入 Setup
-              return const AppLockSetupPage();
-            }
-            // 正常：根据 unlocked 切换
-            return unlocked ? child : const AppLockUnlockPage();
-          },
+          builder: (_, __) =>
+              AppLockController.instance.unlocked ? child : const AppLockUnlockPage(),
         );
       },
     );

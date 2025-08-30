@@ -34,23 +34,43 @@ class _WalletCreatePageState extends State<WalletCreatePage> {
             const Text('请设置三个独立的密码（务必妥善保存）', style: TextStyle(fontSize: 16)),
             const SizedBox(height: 16),
 
+            // 组 1
             PwField(controller: _p1, label: '密码1'),
             const SizedBox(height: 8),
-            TextField(controller: _h1, decoration: const InputDecoration(labelText: '密码1提示(可选)')),
+            TextField(
+              controller: _h1,
+              decoration: const InputDecoration(labelText: '密码1提示(可选)'),
+            ),
 
             const SizedBox(height: 20),
+
+            // 组 2
             PwField(controller: _p2, label: '密码2'),
             const SizedBox(height: 8),
-            TextField(controller: _h2, decoration: const InputDecoration(labelText: '密码2提示(可选)')),
+            TextField(
+              controller: _h2,
+              decoration: const InputDecoration(labelText: '密码2提示(可选)'),
+            ),
 
             const SizedBox(height: 20),
+
+            // 组 3
             PwField(controller: _p3, label: '密码3'),
             const SizedBox(height: 8),
-            TextField(controller: _h3, decoration: const InputDecoration(labelText: '密码3提示(可选)')),
+            TextField(
+              controller: _h3,
+              decoration: const InputDecoration(labelText: '密码3提示(可选)'),
+            ),
 
             const SizedBox(height: 28),
+
             ElevatedButton.icon(
-              icon: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.check),
+              icon: _busy
+                  ? const SizedBox(
+                      width: 18, height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.check),
               label: const Text('创建并保存'),
               onPressed: _busy ? null : _create,
             ),
@@ -63,20 +83,27 @@ class _WalletCreatePageState extends State<WalletCreatePage> {
   Future<void> _create() async {
     final p1 = _p1.text, p2 = _p2.text, p3 = _p3.text;
     if (p1.isEmpty || p2.isEmpty || p3.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('三个密码均不能为空')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('三个密码均不能为空')),
+      );
       return;
     }
 
     setState(() => _busy = true);
     try {
+      // 1) 生成私钥及地址
       final pk = CryptoService.generatePrivateKey32();
       final (addrB58, addrHex) = CryptoService.deriveTronAddress(pk);
 
+      // 2) 三密加密
       const iterations = 310000;
       final enc = await CryptoService.encryptPrivateKeyWithThreePasswords(
-        privateKey32: pk, pass1: p1, pass2: p2, pass3: p3, iterations: iterations,
+        privateKey32: pk,
+        pass1: p1, pass2: p2, pass3: p3,
+        iterations: iterations,
       );
 
+      // 3) 入库
       final entry = WalletEntry(
         id: const Uuid().v4(),
         addressBase58: addrB58,
@@ -92,16 +119,19 @@ class _WalletCreatePageState extends State<WalletCreatePage> {
         createdAt: DateTime.now(), version: 1,
       );
 
-      // 兼容：以 Map 存储（不要求 TypeAdapter）；旧数据若是对象也能被列表读取
-      final box = Hive.box('wallets');
-      await box.put(entry.id, entry.toJson());
+      final box = Hive.box<WalletEntry>('wallets');
+      await box.put(entry.id, entry);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('钱包已创建并保存')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('钱包已创建并保存')),
+      );
       Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('创建失败: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('创建失败: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -109,16 +139,19 @@ class _WalletCreatePageState extends State<WalletCreatePage> {
   }
 }
 
+/// 通用：带显示/隐藏的密码输入框
 class PwField extends StatefulWidget {
   final TextEditingController controller;
   final String label;
   const PwField({super.key, required this.controller, required this.label});
+
   @override
   State<PwField> createState() => _PwFieldState();
 }
 
 class _PwFieldState extends State<PwField> {
   bool _obscure = true;
+
   @override
   Widget build(BuildContext context) {
     return TextField(
