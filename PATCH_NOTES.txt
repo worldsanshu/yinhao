@@ -1,0 +1,18 @@
+1) 将 lib/security 目录下 4 个文件复制到你的项目：
+   - app_lock_controller.dart
+   - app_lock_service.dart
+   - app_lock_pages.dart
+   - app_lock_gate.dart
+
+2) 在入口将首页用 Gate 包裹：
+   MaterialApp(home: const AppLockGate(child: SplashPage()), ...);
+
+3) pubspec.yaml 依赖：
+   local_auth: ^2.1.7
+   flutter_secure_storage: ^9.2.2
+
+4) iOS Info.plist 添加：
+   <key>NSFaceIDUsageDescription</key>
+   <string>用于快速安全地解锁应用</string>
+
+5) flutter clean && flutter pub get && (cd ios && pod install --repo-update && cd ..) && flutter run
