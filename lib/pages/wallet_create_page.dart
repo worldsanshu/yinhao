@@ -1,25 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-
 import '../services/crypto_service.dart';
 import '../models/wallet_entry.dart';
 
 class WalletCreatePage extends StatefulWidget {
   const WalletCreatePage({super.key});
-
   @override
   State<WalletCreatePage> createState() => _WalletCreatePageState();
 }
 
 class _WalletCreatePageState extends State<WalletCreatePage> {
+  final _name = TextEditingController(); // 👈 新增
   final _p1 = TextEditingController();
   final _p2 = TextEditingController();
   final _p3 = TextEditingController();
   final _h1 = TextEditingController();
   final _h2 = TextEditingController();
   final _h3 = TextEditingController();
-
   bool _busy = false;
 
   @override
@@ -31,20 +29,28 @@ class _WalletCreatePageState extends State<WalletCreatePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            TextField(
+              controller: _name,
+              decoration: const InputDecoration(
+                labelText: '钱包名称（可选）', hintText: '例如：常用账户/冷钱包',
+              ),
+            ),
+            const SizedBox(height: 16),
+
             const Text('请设置三个独立的密码（务必妥善保存）', style: TextStyle(fontSize: 16)),
             const SizedBox(height: 16),
 
-            PwField(controller: _p1, label: '密码1'),
+            _PwField(controller: _p1, label: '密码1'),
             const SizedBox(height: 8),
             TextField(controller: _h1, decoration: const InputDecoration(labelText: '密码1提示(可选)')),
 
             const SizedBox(height: 20),
-            PwField(controller: _p2, label: '密码2'),
+            _PwField(controller: _p2, label: '密码2'),
             const SizedBox(height: 8),
             TextField(controller: _h2, decoration: const InputDecoration(labelText: '密码2提示(可选)')),
 
             const SizedBox(height: 20),
-            PwField(controller: _p3, label: '密码3'),
+            _PwField(controller: _p3, label: '密码3'),
             const SizedBox(height: 8),
             TextField(controller: _h3, decoration: const InputDecoration(labelText: '密码3提示(可选)')),
 
@@ -90,19 +96,15 @@ class _WalletCreatePageState extends State<WalletCreatePage> {
         pbkdf2Iterations: iterations,
         hint1: _h1.text, hint2: _h2.text, hint3: _h3.text,
         createdAt: DateTime.now(), version: 1,
+        name: _name.text.trim().isEmpty ? null : _name.text.trim(), // 👈 保存名称
       );
 
       final box = Hive.box('wallets');
       await box.put(entry.id, entry.toJson());
 
-    
-
-      
-      // 成功后
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('钱包已创建并保存')));
-      Navigator.pop(context, true); // ← 带结果返回
-      
+      Navigator.pop(context);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('创建失败: $e')));
@@ -113,15 +115,14 @@ class _WalletCreatePageState extends State<WalletCreatePage> {
   }
 }
 
-class PwField extends StatefulWidget {
+class _PwField extends StatefulWidget {
   final TextEditingController controller;
   final String label;
-  const PwField({super.key, required this.controller, required this.label});
+  const _PwField({required this.controller, required this.label});
   @override
-  State<PwField> createState() => _PwFieldState();
+  State<_PwField> createState() => _PwFieldState();
 }
-
-class _PwFieldState extends State<PwField> {
+class _PwFieldState extends State<_PwField> {
   bool _obscure = true;
   @override
   Widget build(BuildContext context) {

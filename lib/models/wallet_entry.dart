@@ -1,5 +1,5 @@
-
 import 'dart:convert';
+
 class WalletEntry {
   final String id;
   final String addressBase58;
@@ -17,6 +17,7 @@ class WalletEntry {
   final DateTime createdAt;
   final int version;
   final bool isDefault;
+  final String? name; // 👈 新增：钱包名称/备注
 
   const WalletEntry({
     required this.id,
@@ -35,7 +36,48 @@ class WalletEntry {
     required this.createdAt,
     required this.version,
     this.isDefault = false,
+    this.name, // 👈 新增
   });
+
+  WalletEntry copyWith({
+    String? id,
+    String? addressBase58,
+    String? addressHex,
+    String? encPrivateKeyB64,
+    String? nonceB64,
+    String? salt1B64,
+    String? salt2B64,
+    String? salt3B64,
+    String? masterSaltB64,
+    int? pbkdf2Iterations,
+    String? hint1,
+    String? hint2,
+    String? hint3,
+    DateTime? createdAt,
+    int? version,
+    bool? isDefault,
+    String? name,
+  }) {
+    return WalletEntry(
+      id: id ?? this.id,
+      addressBase58: addressBase58 ?? this.addressBase58,
+      addressHex: addressHex ?? this.addressHex,
+      encPrivateKeyB64: encPrivateKeyB64 ?? this.encPrivateKeyB64,
+      nonceB64: nonceB64 ?? this.nonceB64,
+      salt1B64: salt1B64 ?? this.salt1B64,
+      salt2B64: salt2B64 ?? this.salt2B64,
+      salt3B64: salt3B64 ?? this.salt3B64,
+      masterSaltB64: masterSaltB64 ?? this.masterSaltB64,
+      pbkdf2Iterations: pbkdf2Iterations ?? this.pbkdf2Iterations,
+      hint1: hint1 ?? this.hint1,
+      hint2: hint2 ?? this.hint2,
+      hint3: hint3 ?? this.hint3,
+      createdAt: createdAt ?? this.createdAt,
+      version: version ?? this.version,
+      isDefault: isDefault ?? this.isDefault,
+      name: name ?? this.name, // 👈
+    );
+  }
 
   factory WalletEntry.fromJson(Map<String, dynamic> j) {
     return WalletEntry(
@@ -52,42 +94,49 @@ class WalletEntry {
       hint1: j['hint1'] as String?,
       hint2: j['hint2'] as String?,
       hint3: j['hint3'] as String?,
-      createdAt: DateTime.tryParse(j['createdAt']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch((j['createdAtMs'] ?? 0) as int, isUtc: false),
+      createdAt: DateTime.tryParse(j['createdAt']?.toString() ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch((j['createdAtMs'] ?? 0) as int, isUtc: false),
       version: (j['version'] as num?)?.toInt() ?? 1,
       isDefault: (j['isDefault'] as bool?) ?? false,
+      name: j['name'] as String?, // 👈 兼容旧数据：可能不存在
     );
   }
-  static WalletEntry importJson(String s) => WalletEntry.fromJson(jsonDecode(s));
 
   static WalletEntry? tryFrom(dynamic v) {
     if (v == null) return null;
     if (v is WalletEntry) return v;
     if (v is Map) return WalletEntry.fromJson(Map<String, dynamic>.from(v));
+    if (v is String) {
+      try {
+        final d = jsonDecode(v);
+        if (d is Map) return WalletEntry.fromJson(Map<String, dynamic>.from(d));
+      } catch (_) {}
+    }
     return null;
   }
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'addressBase58': addressBase58,
-    'addressHex': addressHex,
-    'encPrivateKeyB64': encPrivateKeyB64,
-    'nonceB64': nonceB64,
-    'salt1B64': salt1B64,
-    'salt2B64': salt2B64,
-    'salt3B64': salt3B64,
-    'masterSaltB64': masterSaltB64,
-    'pbkdf2Iterations': pbkdf2Iterations,
-    'hint1': hint1,
-    'hint2': hint2,
-    'hint3': hint3,
-    'createdAt': createdAt.toIso8601String(),
-    'createdAtMs': createdAt.millisecondsSinceEpoch,
-    'version': version,
-    'isDefault': isDefault,
-  };
+        'id': id,
+        'addressBase58': addressBase58,
+        'addressHex': addressHex,
+        'encPrivateKeyB64': encPrivateKeyB64,
+        'nonceB64': nonceB64,
+        'salt1B64': salt1B64,
+        'salt2B64': salt2B64,
+        'salt3B64': salt3B64,
+        'masterSaltB64': masterSaltB64,
+        'pbkdf2Iterations': pbkdf2Iterations,
+        'hint1': hint1,
+        'hint2': hint2,
+        'hint3': hint3,
+        'createdAt': createdAt.toIso8601String(),
+        'createdAtMs': createdAt.millisecondsSinceEpoch,
+        'version': version,
+        'isDefault': isDefault,
+        'name': name, // 👈 导出名称
+      };
 
-  String exportJson() {
-    final m = toJson();
-    return m.toString();
-  }
+  String exportJson() => const JsonEncoder.withIndent('  ').convert(toJson());
+  static WalletEntry importJson(String s) =>
+      WalletEntry.fromJson(Map<String, dynamic>.from(jsonDecode(s)));
 }

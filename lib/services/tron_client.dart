@@ -3,7 +3,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:convert/convert.dart' as conv;
-
+import 'address_codec.dart';
 class TronClient {
   final String endpoint;
   TronClient({this.endpoint = 'https://api.trongrid.io'});
@@ -14,7 +14,9 @@ class TronClient {
     if (s.startsWith('41') || s.startsWith('0x41')) {
       // 占位：返回 'T-' + hex 以便编译运行；需要真正 Base58 时可替换为 bs58check.encode
       final hex = s.startsWith('0x') ? s.substring(2) : s;
-      return 'T-' + hex.toLowerCase();
+      // return 'T-' + hex.toLowerCase();
+      return  normalizeTronForDisplay(hex.toLowerCase());
+      
     }
     throw ArgumentError('无法识别的地址格式: $input');
   }

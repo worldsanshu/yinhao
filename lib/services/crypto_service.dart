@@ -3,7 +3,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'package:convert/convert.dart' as conv;
 import 'package:pointycastle/export.dart' as pc;
-
+import 'address_codec.dart';
 class CryptoService {
   static final _rnd = Random.secure();
   static final _curve = pc.ECCurve_secp256k1();
@@ -28,10 +28,16 @@ class CryptoService {
     final out = Uint8List(32);
     keccak.doFinal(out, 0);
     final addr20 = out.sublist(12);
-    final tronHex = Uint8List.fromList([0x41, ...addr20]);
-    final tronHexStr = conv.hex.encode(tronHex);
-    final tronBase58 = _base58checkEncode(tronHex);
-    return (tronBase58, tronHexStr);
+    // final tronHex = Uint8List.fromList([0x41, ...addr20]);
+    // final tronHexStr = conv.hex.encode(tronHex);
+    // final tronBase58 = _base58checkEncode(tronHex);
+    // return (tronBase58, tronHexStr);
+
+
+      final tronHexBytes = Uint8List.fromList([0x41, ...addr20]);
+  final hex41 = conv.hex.encode(tronHexBytes).toLowerCase();
+  final base58 = tronHexToBase58(hex41);
+  return (base58, hex41);
   }
 
   /// AES-GCM(256) 三密派生密钥后异或合成 master key

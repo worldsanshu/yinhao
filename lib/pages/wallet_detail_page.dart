@@ -11,7 +11,6 @@ import 'transfer_page.dart';
 class WalletDetailPage extends StatefulWidget {
   final String walletId;
   const WalletDetailPage({super.key, required this.walletId});
-
   @override
   State<WalletDetailPage> createState() => _WalletDetailPageState();
 }
@@ -37,21 +36,41 @@ class _WalletDetailPageState extends State<WalletDetailPage> {
     final (trx, usdt) = await s.balances(_entry!.addressBase58);
     final txs = await _client.recentUsdtTransfers(_entry!.addressBase58, limit: 10);
     if (!mounted) return;
-    setState(() {
-      _trx = trx;
-      _usdt = usdt;
-      _recent = txs;
-    });
+    setState(() { _trx = trx; _usdt = usdt; _recent = txs; });
+  }
+
+  Future<void> _rename() async {
+    final e = _entry; if (e == null) return;
+    final ctrl = TextEditingController(text: e.name ?? '');
+    final name = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('重命名钱包'),
+        content: TextField(controller: ctrl, decoration: const InputDecoration(labelText: '钱包名称（可留空）')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('取消')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('保存')),
+        ],
+      ),
+    );
+    if (name == null) return;
+    final box = Hive.box('wallets');
+    final updated = e.copyWith(name: name.isEmpty ? null : name);
+    await box.put(e.id, updated.toJson());
+    if (mounted) setState(() => _entry = updated);
   }
 
   @override
   Widget build(BuildContext context) {
     final e = _entry;
     if (e == null) return const Scaffold(body: Center(child: Text('未找到钱包')));
+    final title = (e.name?.trim().isNotEmpty == true) ? e.name! : '钱包详情';
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('钱包详情'),
+        title: Text(title),
         actions: [
+          IconButton(icon: const Icon(Icons.edit), onPressed: _rename), // 👈 重命名
           IconButton(icon: const Icon(Icons.refresh), onPressed: _refresh),
           IconButton(icon: const Icon(Icons.qr_code), onPressed: () => _showQrOverlay(e.addressBase58)),
           IconButton(
@@ -71,57 +90,57 @@ class _WalletDetailPageState extends State<WalletDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (e.name?.isNotEmpty == true) ...[
+              Text('名称: ${e.name}', style: const TextStyle(fontSize: 13, color: Colors.white70)),
+              const SizedBox(height: 6),
+            ],
             Text('地址: ${e.addressBase58}', style: const TextStyle(fontSize: 12, color: Colors.white60)),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(child: _metric('TRX', _trx)),
-                const SizedBox(width: 12),
-                Expanded(child: _metric('USDT', _usdt)),
-              ],
-            ),
+            Row(children: [
+              Expanded(child: _metric('TRX', _trx)),
+              const SizedBox(width: 12),
+              Expanded(child: _metric('USDT', _usdt)),
+            ]),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.send),
-                    label: const Text('转账 USDT'),
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TransferPage(walletId: e.id, initialAsset: AssetType.usdt))),
-                  ),
+            Row(children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.send),
+                  label: const Text('转账 USDT'),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TransferPage(walletId: e.id, initialAsset: AssetType.usdt))),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.flash_on),
-                    label: const Text('转账 TRX'),
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TransferPage(walletId: e.id, initialAsset: AssetType.trx))),
-                  ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.flash_on),
+                  label: const Text('转账 TRX'),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TransferPage(walletId: e.id, initialAsset: AssetType.trx))),
                 ),
-              ],
-            ),
+              ),
+            ]),
             const SizedBox(height: 12),
             const Text('最近交易（TRC20）', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
             Expanded(
               child: _recent.isEmpty
-                  ? const Center(child: Text('暂无数据'))
-                  : ListView.separated(
-                      itemCount: _recent.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1, thickness: 0.2),
-                      itemBuilder: (_, i) {
-                        final t = _recent[i];
-                        final to = t['to'] ?? '';
-                        final from = t['from'] ?? '';
-                        final value = t['value']?.toString() ?? '';
-                        final type = t['type'] ?? '';
-                        return ListTile(
-                          dense: true,
-                          title: Text('$type $value'),
-                          subtitle: Text('from: $from -> to: $to', maxLines: 1, overflow: TextOverflow.ellipsis),
-                        );
-                      },
-                    ),
+                ? const Center(child: Text('暂无数据'))
+                : ListView.separated(
+                    itemCount: _recent.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1, thickness: 0.2),
+                    itemBuilder: (_, i) {
+                      final t = _recent[i];
+                      final to = t['to'] ?? '';
+                      final from = t['from'] ?? '';
+                      final value = t['value']?.toString() ?? '';
+                      final type = t['type'] ?? '';
+                      return ListTile(
+                        dense: true,
+                        title: Text('$type $value'),
+                        subtitle: Text('from: $from -> to: $to', maxLines: 1, overflow: TextOverflow.ellipsis),
+                      );
+                    },
+                  ),
             ),
           ],
         ),
@@ -150,20 +169,13 @@ class _WalletDetailPageState extends State<WalletDetailPage> {
                   color: Theme.of(ctx).cardColor,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('地址二维码', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: side,
-                      height: side,
-                      child: Center(child: QrImageView(data: address, size: side)),
-                    ),
-                    const SizedBox(height: 8),
-                    SelectableText(address, style: const TextStyle(fontSize: 12), textAlign: TextAlign.center),
-                  ],
-                ),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const Text('地址二维码', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  SizedBox(width: side, height: side, child: Center(child: QrImageView(data: address, size: side))),
+                  const SizedBox(height: 8),
+                  SelectableText(address, style: const TextStyle(fontSize: 12), textAlign: TextAlign.center),
+                ]),
               ),
             ),
           ),
@@ -176,13 +188,11 @@ class _WalletDetailPageState extends State<WalletDetailPage> {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(value, style: const TextStyle(fontSize: 18)),
-          ],
-        ),
+        child: Column(children: [
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Text(value, style: const TextStyle(fontSize: 18)),
+        ]),
       ),
     );
   }
