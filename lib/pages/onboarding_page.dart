@@ -20,7 +20,7 @@ class OnboardingPage extends StatelessWidget {
             const Spacer(),
             ElevatedButton.icon(
               icon: const Icon(Icons.key),
-              label: const Text('钱包列表'),
+              label: const Text('U钱包列表'),
               onPressed: () =>Navigator.pushReplacementNamed(context, '/wallets'),
             ),
             ElevatedButton.icon(

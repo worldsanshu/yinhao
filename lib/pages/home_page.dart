@@ -229,7 +229,7 @@ class _HomePageState extends State<HomePage> {
           children: [
                ListTile(
               leading: const Icon(Icons.key),
-              title: const Text('钱包列表'),
+              title: const Text('U钱包列表'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletListPage()));
