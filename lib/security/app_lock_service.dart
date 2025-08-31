@@ -33,7 +33,7 @@ class AppLockService {
     return base64UrlEncode(bytes);
   }
 
-  /// 仅数字 PIN；统一 trim，长度建议 4–8（示例用 6）
+  /// 仅数字 PIN；统一 trim，长度 4–8
   static Future<void> setPin(String pin, {bool enableBiometrics = false}) async {
     final p = pin.trim();
     if (p.isEmpty || p.length < 4 || p.length > 8 || int.tryParse(p) == null) {

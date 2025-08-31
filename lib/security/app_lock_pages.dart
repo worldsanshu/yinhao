@@ -22,131 +22,115 @@ class _AppLockSetupPageState extends State<AppLockSetupPage> {
     super.initState();
     AppLockService.canUseBiometrics().then((ok) {
       if (mounted) setState(() { _bioSupported = ok; _bioOn = ok; });
-    });
+    }).catchError((_) {});
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: GestureDetector(
-          onLongPress: _openDebugPanel,
-          child: const Text('设置应用密码'),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text('首次使用，请设置 6 位数字密码（用于解锁应用）'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _p1,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              keyboardType: TextInputType.number,
-              obscureText: true,
-              maxLength: 6,
-              decoration: const InputDecoration(labelText: '输入密码（仅数字）'),
+      appBar: AppBar(title: const Text('设置应用密码')),
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: AbsorbPointer(
+          absorbing: _busy,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('首次使用，请设置 6 位数字密码（用于解锁应用）'),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _p1,
+                  keyboardType: TextInputType.number,
+                  obscureText: true,
+                  maxLength: 6,
+                  decoration: const InputDecoration(labelText: '输入密码（建议 6 位数字）'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _p2,
+                  keyboardType: TextInputType.number,
+                  obscureText: true,
+                  maxLength: 6,
+                  decoration: const InputDecoration(labelText: '确认密码'),
+                ),
+                const SizedBox(height: 12),
+                if (_bioSupported)
+                  SwitchListTile(
+                    value: _bioOn,
+                    onChanged: (v) => setState(() => _bioOn = v),
+                    title: const Text('启用 Face ID / 指纹解锁'),
+                    subtitle: const Text('更快捷地解锁应用'),
+                  ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  icon: _busy
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.lock),
+                  label: const Text('设置为应用密码并继续'),
+                  onPressed: () async {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('正在保存，请稍候...')),
+                      );
+                    }
+                    await _save();
+                  },
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () async {
+                    await AppLockService.deleteAllLockKeys();
+                    await AppLockPrefs.setOnboarded(false);
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('已清除旧锁数据，下次进入仍将显示本页面')),
+                    );
+                  },
+                  child: const Text('仍无法点击？点此重置锁数据'),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _p2,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              keyboardType: TextInputType.number,
-              obscureText: true,
-              maxLength: 6,
-              decoration: const InputDecoration(labelText: '确认密码'),
-            ),
-            const SizedBox(height: 12),
-            if (_bioSupported)
-              SwitchListTile(
-                value: _bioOn,
-                onChanged: (v) => setState(() => _bioOn = v),
-                title: const Text('启用 Face ID / 指纹解锁'),
-                subtitle: const Text('更快捷地解锁应用'),
-              ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              icon: _busy
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.lock),
-              label: const Text('设为应用密码并继续'),
-              onPressed: _busy ? null : _save,
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
+  String _digitsOnly(String s) => s.replaceAll(RegExp(r'[^0-9]'), '');
+
   Future<void> _save() async {
-    final a = _p1.text.trim(), b = _p2.text.trim();
-    if (a != b || a.length < 4) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('两次输入不一致，或长度不足 4 位')),
-      );
-      return;
-    }
+    if (!mounted) return;
     setState(() => _busy = true);
     try {
+      final a = _digitsOnly(_p1.text.trim());
+      final b = _digitsOnly(_p2.text.trim());
+      if (a != b || a.length < 4) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('两次输入不一致，或长度不足 4 位（仅数字）')),
+        );
+        return;
+      }
       await AppLockService.setPin(a, enableBiometrics: _bioOn);
-      await AppLockPrefs.setOnboarded(true);   // 记录首启完成
+      await AppLockPrefs.setOnboarded(true);
       AppLockController.instance.setUnlocked(true);
+      if (Navigator.canPop(context)) Navigator.of(context).pop();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('设置成功，已解锁')),
+        );
+      }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('保存失败：$e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('保存失败：$e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  Future<void> _openDebugPanel() async {
-    final snap = await AppLockService.debugSnapshot();
-    if (!mounted) return;
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('AppLock 调试', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            FutureBuilder<bool>(
-              future: AppLockPrefs.isOnboarded(),
-              builder: (_, s) => Text('onboarded: ${s.data}'),
-            ),
-            Text('hasPin: ${snap['hash'] != null && snap['salt'] != null}'),
-            Text('bio: ${snap['bio']}'),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                ElevatedButton(
-                  onPressed: () async {
-                    await AppLockService.deleteAllLockKeys();
-                    if (mounted) Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已清除 AppLock Keychain')));
-                  },
-                  child: const Text('清除锁数据'),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton(
-                  onPressed: () async {
-                    await AppLockPrefs.setOnboarded(false);
-                    if (mounted) Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('下次启动会进入设置页')));
-                  },
-                  child: const Text('清除首启标记'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 
@@ -182,12 +166,7 @@ class _AppLockUnlockPageState extends State<AppLockUnlockPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: GestureDetector(
-          onLongPress: _openDebugPanel,
-          child: const Text('解锁'),
-        ),
-      ),
+      appBar: AppBar(title: const Text('解锁')),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -195,11 +174,10 @@ class _AppLockUnlockPageState extends State<AppLockUnlockPage> {
           children: [
             TextField(
               controller: _pin,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               keyboardType: TextInputType.number,
               obscureText: true,
               maxLength: 6,
-              decoration: const InputDecoration(labelText: '输入应用密码（仅数字）'),
+              decoration: const InputDecoration(labelText: '输入应用密码（数字）'),
             ),
             const SizedBox(height: 12),
             ElevatedButton.icon(
@@ -228,7 +206,8 @@ class _AppLockUnlockPageState extends State<AppLockUnlockPage> {
   Future<void> _unlock() async {
     setState(() => _busy = true);
     try {
-      final ok = await AppLockService.verifyPin(_pin.text);
+      final p = _pin.text.replaceAll(RegExp(r'[^0-9]'), '');
+      final ok = await AppLockService.verifyPin(p);
       if (ok) {
         AppLockController.instance.setUnlocked(true);
       } else {
@@ -241,52 +220,5 @@ class _AppLockUnlockPageState extends State<AppLockUnlockPage> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  Future<void> _openDebugPanel() async {
-    final snap = await AppLockService.debugSnapshot();
-    if (!mounted) return;
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('AppLock 调试', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            FutureBuilder<bool>(
-              future: AppLockPrefs.isOnboarded(),
-              builder: (_, s) => Text('onboarded: ${s.data}'),
-            ),
-            Text('hasPin: ${snap['hash'] != null && snap['salt'] != null}'),
-            Text('bio: ${snap['bio']}'),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                ElevatedButton(
-                  onPressed: () async {
-                    await AppLockService.deleteAllLockKeys();
-                    if (mounted) Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已清除 AppLock Keychain')));
-                  },
-                  child: const Text('清除锁数据'),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton(
-                  onPressed: () async {
-                    await AppLockPrefs.setOnboarded(false);
-                    if (mounted) Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('下次启动会进入设置页')));
-                  },
-                  child: const Text('清除首启标记'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

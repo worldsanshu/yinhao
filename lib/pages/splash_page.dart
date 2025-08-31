@@ -21,11 +21,9 @@ class _SplashPageState extends State<SplashPage> {
 
   Future<void> _boot() async {
     await Hive.initFlutter();
-    if (!Hive.isAdapterRegistered(1)) {
-      Hive.registerAdapter(WalletEntryAdapter());
-    }
-    await Hive.openBox<WalletEntry>('wallets');
-    await Hive.openBox('settings'); // 存默认钱包id等
+  await Hive.openBox('wallets');
+  await Hive.openBox('settings');
+   
     final (pinHash, _) = await SecureStore.readPinHashAndSalt();
     await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;

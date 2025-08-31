@@ -8,6 +8,7 @@ import 'settings_page.dart';
 import 'wallet_detail_page.dart';
 import 'wallet_create_page.dart';
 import 'wallet_import_page.dart';
+import 'wallet_list_page.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -29,7 +30,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _box = Hive.box<WalletEntry>('wallets');
+    _box = Hive.box('wallets');
     _settings = Hive.box('settings');
     _defaultId = _settings.get('default_wallet_id') as String?;
     _loadDefaultSummary();
@@ -226,6 +227,14 @@ class _HomePageState extends State<HomePage> {
       builder: (_) => SafeArea(
         child: Wrap(
           children: [
+               ListTile(
+              leading: const Icon(Icons.key),
+              title: const Text('钱包列表'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletListPage()));
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.key),
               title: const Text('创建新钱包'),

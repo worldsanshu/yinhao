@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'wallet_create_page.dart';
 import 'wallet_import_page.dart';
-
+import 'wallet_list_page.dart';
 class OnboardingPage extends StatelessWidget {
   const OnboardingPage({super.key});
 
@@ -18,6 +18,11 @@ class OnboardingPage extends StatelessWidget {
             const SizedBox(height: 8),
             const Text('本地加密 · 三密码解锁 · 无需服务端 · 支持Face ID'),
             const Spacer(),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.key),
+              label: const Text('钱包列表'),
+              onPressed: () =>Navigator.pushReplacementNamed(context, '/wallets'),
+            ),
             ElevatedButton.icon(
               icon: const Icon(Icons.key),
               label: const Text('创建新钱包'),

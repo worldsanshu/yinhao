@@ -34,7 +34,7 @@ class _WalletImportPageState extends State<WalletImportPage> {
   Future<void> _import() async {
     try {
       final entry = WalletEntry.importJson(_encCtrl.text);
-      final box = Hive.box<WalletEntry>('wallets');
+      final box =  Hive.box('wallets');
       await box.put(entry.id, entry);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('导入成功: ${entry.addressBase58}')));

@@ -92,16 +92,19 @@ class _WalletCreatePageState extends State<WalletCreatePage> {
         createdAt: DateTime.now(), version: 1,
       );
 
-      // 兼容：以 Map 存储（不要求 TypeAdapter）；旧数据若是对象也能被列表读取
       final box = Hive.box('wallets');
       await box.put(entry.id, entry.toJson());
-       print( mounted);
+
+    
+
+      
+      // 成功后
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('钱包已创建并保存')));
-      Navigator.pop(context);
+      Navigator.pop(context, true); // ← 带结果返回
+      
     } catch (e) {
       if (mounted) {
-        print( Text('创建失败: $e'));
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('创建失败: $e')));
       }
     } finally {
