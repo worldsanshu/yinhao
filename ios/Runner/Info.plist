@@ -28,6 +28,10 @@
 	<true/>
 	<key>NSFaceIDUsageDescription</key>
 	<string>我们需要使用 Face ID 来验证你的身份，以确保账户安全。</string>
+	<key>NSCameraUsageDescription</key>
+	<string>用于扫描二维码</string>
+
+
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
