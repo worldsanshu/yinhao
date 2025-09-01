@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../services/secure_store.dart';
-import '../models/wallet_entry.dart';
+
 import 'pin_lock_page.dart';
 import 'onboarding_page.dart';
 

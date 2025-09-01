@@ -12,7 +12,8 @@ import '../services/tron_client.dart';
 import '../services/usdt_service.dart';
 
 import 'transfer_page.dart'; // TransferPage + AssetType
-
+import '../widgets/tron_activity.dart';
+import '../widgets/explorer_sheet.dart';
 class WalletDetailPage extends StatefulWidget {
   const WalletDetailPage({super.key, required this.walletId});
   final String walletId;
@@ -54,11 +55,34 @@ class _WalletDetailPageState extends State<WalletDetailPage> {
       wallets.listenable(),
       settings.listenable(),
     ]);
+    debugPrint('box=${wallets.name}, length=${wallets.length}');
+ 
+    for (final key in wallets.keys) {
+      debugPrint('[$key] => ${wallets.get(key)}');
+    }
+    debugPrint(wallets.toMap().toString()); // 内容多会自动分行
+    final e = _entryOf(wallets, widget.walletId);
+    final String? address = e?.addressBase58; // 可空
 
+        // 打开地址页
+   
     return Scaffold(
       appBar: AppBar(
         title: const Text('钱包详情'),
         actions: [
+          // if (address != null && address.isNotEmpty)
+          // TronActivityPanel.explorerAction(address),
+        
+           IconButton(
+      tooltip: '在区块浏览器打开',
+      icon: const Icon(Icons.open_in_new),
+      onPressed: () {
+         final url = ExplorerSheet.tronscanUrl(
+              origin: 'https://tronscan.org/#', // 可改你喜欢的浏览器域名
+              path: 'address/$address',
+            );
+             ExplorerSheet.show(context, url: url);
+         },),
           IconButton(
             tooltip: '二维码',
             icon: const Icon(Icons.qr_code_2),
@@ -186,7 +210,7 @@ class _WalletDetailPageState extends State<WalletDetailPage> {
                     const SizedBox(height: 8),
                     Text(
                       '创建于：${e.createdAt.toLocal().toString().split('.').first}',
-                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                      style: const TextStyle(fontSize: 12, color: Color.fromARGB(137, 230, 230, 230)),
                     ),
                     const SizedBox(height: 8),
                     // 二维码快速入口（卡片内也给一个按钮，和 AppBar 的图标互补）
@@ -324,6 +348,10 @@ class _WalletDetailPageState extends State<WalletDetailPage> {
                   ],
                 ),
               ),
+      
+        
+        
+
             ],
           );
         },
@@ -431,7 +459,8 @@ class _WalletDetailPageState extends State<WalletDetailPage> {
       ),
       builder: (ctx) {
         final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        final fg = isDark ? Colors.white : Colors.black87;
+        final fg = isDark ? Colors.white : const Color.fromARGB(221, 138, 138, 138);
+          final fg2 = isDark ? Colors.white : Colors.black87;
         return Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           child: Column(
@@ -451,7 +480,7 @@ class _WalletDetailPageState extends State<WalletDetailPage> {
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: isDark ? Colors.white.withOpacity(0.06) : Colors.white,
+                    color:  Colors.white,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: QrImageView(
