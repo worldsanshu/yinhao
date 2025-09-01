@@ -14,6 +14,8 @@ import '../services/usdt_service.dart';
 import 'transfer_page.dart'; // TransferPage + AssetType
 import '../widgets/tron_activity.dart';
 import '../widgets/explorer_sheet.dart';
+import '../widgets/tron_resources.dart';
+import 'energy_purchase_page.dart';
 class WalletDetailPage extends StatefulWidget {
   const WalletDetailPage({super.key, required this.walletId});
   final String walletId;
@@ -103,13 +105,16 @@ class _WalletDetailPageState extends State<WalletDetailPage> {
             tooltip: '刷新余额',
             icon: _loading
                 ? const SizedBox(
-                    width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    width: 18, 
+                    height: 18, 
+                    child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.refresh),
-            onPressed: _loading
+                   onPressed: _loading
                 ? null
                 : () async {
                     final e = _entryOf(wallets, widget.walletId);
                     if (e != null) await _refresh(e);
+               
                   },
           ),
           IconButton(
@@ -274,6 +279,15 @@ class _WalletDetailPageState extends State<WalletDetailPage> {
                 ),
               ),
 
+const SizedBox(height: 8),
+
+// 👉 新增：TRON 资源面板（能量/带宽）
+// TronResourcesPanel(addressBase58: e.addressBase58),
+TronResourcesPanel(
+  addressBase58: e.addressBase58,
+  dense: true,       // 紧凑
+  showTip: false,    // 如需底部说明可设 true
+),
               const SizedBox(height: 12),
 
               // ===== 快捷操作卡 =====
@@ -325,6 +339,22 @@ class _WalletDetailPageState extends State<WalletDetailPage> {
                         ),
                       ],
                     ),
+const SizedBox(height: 8),
+SizedBox(
+  width: double.infinity,
+  child: FilledButton.icon(
+    icon: const Icon(Icons.bolt),
+    label: const Text('购买能量'),
+    onPressed: () => Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EnergyPurchasePage(walletId: e.id),
+      ),
+    ),
+  ),
+),
+
+
                     const SizedBox(height: 8),
                     Row(
                       children: [
