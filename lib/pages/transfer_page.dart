@@ -16,7 +16,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/crypto_service.dart';
-
+import '../widgets/qr_scan_sheet.dart';
 import '../models/wallet_entry.dart';
 
 /// 资产类型（详情页通过 initialAsset 预选）
@@ -180,19 +180,25 @@ class _TransferPageState extends State<TransferPage> {
   // ---------------- 二次确认 → 最终确认 → 提交 ----------------
 
   Future<void> _onNext() async {
-    if (!_formKey.currentState!.validate()) return;
+  if (_submitting) return;
+  if (!_formKey.currentState!.validate()) return;
 
+  setState(() => _submitting = true);
+  try {
     final normalized = _extractTronAddress(_addrCtl.text) ?? _addrCtl.text.trim();
-    final amount     = _amtCtl.text.trim();
-    final assetText  = _asset == AssetType.usdt ? 'USDT' : 'TRX';
-  // ✅ 新增：先校验三口令（不返回私钥，仅验证正确性）
+    final amount = _amtCtl.text.trim();
+    final assetText = _asset == AssetType.usdt ? 'USDT' : 'TRX';
+
+    // 先校验三口令（不返回私钥，仅验证正确性）
     final passOk = await CryptoService.verifyPasswords(
       _entry!, _p1Ctl.text, _p2Ctl.text, _p3Ctl.text,
     );
     if (!passOk) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('三组口令不正确')));
       return;
     }
+
     // 一级确认：底部面板勾选复核项
     final ok1 = await showModalBottomSheet<bool>(
       context: context,
@@ -217,13 +223,9 @@ class _TransferPageState extends State<TransferPage> {
                   children: [
                     const Icon(Icons.verified_user, size: 20),
                     const SizedBox(width: 8),
-                    Text('请再次确认转账信息',
-                        style: Theme.of(ctx).textTheme.titleMedium),
+                    Text('请再次确认转账信息', style: Theme.of(ctx).textTheme.titleMedium),
                     const Spacer(),
-                    IconButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      icon: const Icon(Icons.close),
-                    ),
+                    IconButton(onPressed: () => Navigator.pop(ctx, false), icon: const Icon(Icons.close)),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -240,19 +242,15 @@ class _TransferPageState extends State<TransferPage> {
                 CheckboxListTile(
                   value: c2,
                   onChanged: (v) => setS(() => c2 = v ?? false),
-                  title: const Text('我已核对转账金额无误'),
+                  title: const Text('我确认这是我本人发起的转账'),
                   contentPadding: EdgeInsets.zero,
                 ),
-                const SizedBox(height: 8),
-                FilledButton.icon(
-                  onPressed: (c1 && c2) ? () => Navigator.pop(ctx, true) : null,
-                  icon: const Icon(Icons.done),
-                  label: const Text('已复核，继续'),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                const SizedBox(height: 6),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: c1 && c2 ? () => Navigator.pop(ctx, true) : null,
+                    child: const Text('继续'),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -281,7 +279,10 @@ class _TransferPageState extends State<TransferPage> {
     if (ok2 == true) {
       await _submit(normalized, amount);
     }
+  } finally {
+    if (mounted) setState(() => _submitting = false);
   }
+}
 
   Widget _confirmRow(String k, String v, {bool mono = false}) {
     return Padding(
@@ -289,7 +290,7 @@ class _TransferPageState extends State<TransferPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 64, child: Text(k, style: const TextStyle(color: Colors.black54))),
+          SizedBox(width: 64, child: Text(k)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -443,8 +444,15 @@ class _TransferPageState extends State<TransferPage> {
                           ),
                           IconButton(
                             tooltip: '扫码识别',
-                            onPressed: _openScanner,
+                            // onPressed: _openScanner,
                             icon: Icon(Icons.qr_code_scanner, color: tileFg),
+                              onPressed: () async {
+                              final raw = await showQrScannerSheet(context);
+                              if (raw == null || raw.isEmpty) return;
+                              final addr = extractTronBase58(raw) ?? raw;
+                             _addrCtl.text = addr;
+                              setState(() {});
+                            },
                           ),
                         ],
                       ),
@@ -578,7 +586,7 @@ class _TransferPageState extends State<TransferPage> {
 
             // 4) 最后显示：下一步（仅当全部校验通过）
             FilledButton.icon(
-              onPressed: _canProceed ? _onNext : null,
+              onPressed: (_canProceed && !_submitting) ? _onNext : null,
               icon: _submitting
                   ? SizedBox( // ← 去掉 const，避免 const+非常量子树
                       width: 18, height: 18,
