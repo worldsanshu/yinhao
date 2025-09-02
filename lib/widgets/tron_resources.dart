@@ -27,10 +27,13 @@ class TronResourcesPanel extends StatefulWidget {
   });
 
   @override
-  State<TronResourcesPanel> createState() => _TronResourcesPanelState();
+  State<TronResourcesPanel> createState() => TronResourcesPanelState();
 }
 
-class _TronResourcesPanelState extends State<TronResourcesPanel> {
+class TronResourcesPanelState extends State<TronResourcesPanel> {
+  /// Expose a public refresh() to let parents trigger resource reloads.
+  Future<void> refresh() => _fetch();
+
   bool _loading = false;
   int _energyLimit = 0;
   int _energyUsed = 0;

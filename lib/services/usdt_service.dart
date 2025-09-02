@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'tron_client.dart';
 
 class UsdtService {
-  static const defaultUsdtContract = 'TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8';
+  static const defaultUsdtContract = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
   final TronClient client;
   UsdtService(this.client);
 
@@ -21,8 +21,11 @@ class UsdtService {
           final trc20 = (acc['trc20'] as List?) ?? [];
           for (final m in trc20) {
             final map = Map<String, dynamic>.from(m as Map);
-            final v = map[defaultUsdtContract] ?? map['USDT'] ?? '0';
-            usdt = v.toString();
+            if (map.containsKey(defaultUsdtContract)) {
+              final v = map[defaultUsdtContract];
+              usdt = v.toString();
+              break;
+            }
           }
           return ((balanceSun / 1e6).toStringAsFixed(6), _fmtUsdt(usdt));
         }

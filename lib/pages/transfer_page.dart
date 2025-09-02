@@ -46,6 +46,9 @@ class _TransferPageState extends State<TransferPage> {
 
   late final AssetType _asset; // 初始资产
   bool _submitting = false;
+  bool _withEnergy = false; // 是否先购买能量（仅 USDT 时显示）
+  String? _energyTo; // 设置中配置的购买能量地址
+  String? _energyTrx; // 设置中配置的购买能量消耗 TRX（金額，字符串）
   bool _hideP1 = true, _hideP2 = true, _hideP3 = true;
 
   WalletEntry? _entry; // 当前钱包（用于名称/提示）
@@ -53,6 +56,13 @@ class _TransferPageState extends State<TransferPage> {
   @override
   void initState() {
     super.initState();
+    // 读取设置中的固定收款地址与能量购买金额
+    try {
+      final s = Hive.box('settings');
+      _energyTo = (s.get('energy_purchase_to') as String?) ?? (s.get('trx_default_to') as String?);
+      final amt = s.get('energy_purchase_trx');
+      if (amt != null) _energyTrx = amt.toString();
+    } catch (_) {}
     _asset = widget.initialAsset;
     final box = Hive.box('wallets');
     _entry = WalletEntry.tryFrom(box.get(widget.walletId));
@@ -325,7 +335,7 @@ class _TransferPageState extends State<TransferPage> {
     late final String txId;
     if (_asset == AssetType.usdt) {
       // 主网 USDT（请再次核对）
-      const usdtContract = 'TCFLL5dx5ZJdKnWuesXxi1VPwjLVmWZZy9';
+      const usdtContract = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
       txId = await tron.sendUsdt(
         fromBase58: entry.addressBase58,
         toBase58: toAddr,

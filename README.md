@@ -6,3 +6,4 @@
 - 转账页：三密解密 -> 构建 -> 签名 -> 广播
 
 > 运行：`flutter create . && flutter pub get && flutter run`
+flutter run -d 00008110-0006548101DA801E  --profile

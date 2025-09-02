@@ -25,6 +25,8 @@ class WalletDetailPage extends StatefulWidget {
 }
 
 class _WalletDetailPageState extends State<WalletDetailPage> {
+  final GlobalKey<TronResourcesPanelState> _resKey = GlobalKey<TronResourcesPanelState>();
+
   String? _usdt;
   String? _trx;
   bool _loading = false;
@@ -113,7 +115,11 @@ class _WalletDetailPageState extends State<WalletDetailPage> {
                 ? null
                 : () async {
                     final e = _entryOf(wallets, widget.walletId);
-                    if (e != null) await _refresh(e);
+                    if (e != null) {
+                      await _refresh(e);
+                      // Also refresh TRON resources
+                      await (_resKey.currentState?.refresh() ?? Future.value());
+                    }
                
                   },
           ),
@@ -284,6 +290,7 @@ const SizedBox(height: 8),
 // 👉 新增：TRON 资源面板（能量/带宽）
 // TronResourcesPanel(addressBase58: e.addressBase58),
 TronResourcesPanel(
+  key: _resKey,
   addressBase58: e.addressBase58,
   dense: true,       // 紧凑
   showTip: false,    // 如需底部说明可设 true
