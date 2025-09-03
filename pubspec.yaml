@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_secure_storage: ^9.0.0
-  local_auth: ^2.2.0
+
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   cryptography: ^2.7.0
@@ -29,7 +29,9 @@ dependencies:
   permission_handler: ^11.3.1
   url_launcher: ^6.3.0
   webview_flutter: ^4.8.0
-
+  mailer: ^6.5.0
+  http_parser: ^4.1.2
+  local_auth: ^2.1.7  # 或兼容你当前 Flutter 版本的最新 2.x
 
 
 

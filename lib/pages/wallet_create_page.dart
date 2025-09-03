@@ -1,9 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../services/crypto_service.dart';
 import '../models/wallet_entry.dart';
-
+import 'dart:async';
+import '../services/email_share.dart';
+import 'package:flutter/material.dart';
 class WalletCreatePage extends StatefulWidget {
   const WalletCreatePage({super.key});
   @override
@@ -124,9 +128,32 @@ final hint3 = _h3.text.trim().isEmpty ? _maskKeep2Head1Tail(p3) : _h3.text.trim(
 
       final box = Hive.box('wallets');
       await box.put(entry.id, entry.toJson());
+// 邮件备份：如果设置中配置了收件邮箱，则发送钱包导出信息作为附件
+        try {
+          final settingsBox = Hive.isBoxOpen('settings') ? Hive.box('settings') : await Hive.openBox('settings');
+          final String? toEmail = (settingsBox.get('backup_email') as String?)?.trim();
+          if (toEmail != null && toEmail.isNotEmpty) {
+            final export = Map<String, dynamic>.from(entry.toJson());
+            export['github'] = 'https://github.com/worldsanshu/yinhao.git';
+            export['note'] = '具体操作使用信息前往github查看操作';
+            // final bytes = utf8.encode(const JsonEncoder.withIndent('  ').convert(export));
+            final bytes = utf8.encode(jsonEncode(export));
 
+            await EmailShare.sendWalletBackup(
+              to: toEmail,
+              subject: '个人重要数字财产备份邮件',
+              textBody: '本邮件是USDT钱包创建时自动发送，这个邮件内容附件是与创建人有关的数字资产备份，备用以便不时之需，具体使用方法是https://github.com/worldsanshu/yinhao.git',
+              filename: 'wallet_backup_${entry.id}.json',
+              data: bytes,
+            );
+          }
+        } catch (e) {
+          // 邮件发送失败不影响创建流程
+          debugPrint('Email backup skipped or failed: $e');
+        }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('钱包已创建并保存')));
+      
       Navigator.pop(context);
     } catch (e) {
       if (mounted) {
