@@ -32,7 +32,7 @@ dependencies:
   mailer: ^6.5.0
   http_parser: ^4.1.2
   local_auth: ^2.1.7  # 或兼容你当前 Flutter 版本的最新 2.x
-
+  flutter_launcher_icons: ^0.13.1
 
 
 dev_dependencies:
@@ -44,3 +44,14 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icons/
+
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  # 可选：Android 自适应图标（前景/背景分层）
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#FFFFFF"
+  remove_alpha_ios: true
+  min_sdk_android: 23

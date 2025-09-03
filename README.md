@@ -20,7 +20,7 @@
 
 > 运行1：`flutter create . && flutter pub get && flutter run`
 
-> 指定运行2：`fflutter run -d 00008110-0006548101DA801E  --profile`
+> 指定运行2：`flutter run -d 00008110-0006548101DA801E  --profile`
 
 # 详细功能介绍
 - 1、支持设置应用密码，打开应用需要设置认证密码或者Face ID；
