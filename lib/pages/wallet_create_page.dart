@@ -66,6 +66,7 @@ class _WalletCreatePageState extends State<WalletCreatePage> {
     );
   }
 
+
   Future<void> _create() async {
     final p1 = _p1.text, p2 = _p2.text, p3 = _p3.text;
     if (p1.isEmpty || p2.isEmpty || p3.isEmpty) {
@@ -82,22 +83,44 @@ class _WalletCreatePageState extends State<WalletCreatePage> {
       final enc = await CryptoService.encryptPrivateKeyWithThreePasswords(
         privateKey32: pk, pass1: p1, pass2: p2, pass3: p3, iterations: iterations,
       );
+/// 前2位 + *...* + 最后1位；长度特殊场景做了保护：
+/// len==1 → 原样返回；len==2 → 显示首1 + *；len==3 → 显示前2 + 末1
+String _maskKeep2Head1Tail(String? s) {
+  final t = (s ?? '').trim();
+  if (t.isEmpty) return '';
+  if (t.length == 1) return t;
+  if (t.length == 2) return t[0] + '*';
+  if (t.length == 3) return t.substring(0, 2) + t.substring(2); // 前2 + 后1
 
-      final entry = WalletEntry(
-        id: const Uuid().v4(),
-        addressBase58: addrB58,
-        addressHex: addrHex,
-        encPrivateKeyB64: enc['ciphertextB64']!,
-        nonceB64: enc['nonceB64']!,
-        salt1B64: enc['salt1B64']!,
-        salt2B64: enc['salt2B64']!,
-        salt3B64: enc['salt3B64']!,
-        masterSaltB64: enc['masterSaltB64']!,
-        pbkdf2Iterations: iterations,
-        hint1: _h1.text, hint2: _h2.text, hint3: _h3.text,
-        createdAt: DateTime.now(), version: 1,
-        name: _name.text.trim().isEmpty ? null : _name.text.trim(), // 👈 保存名称
-      );
+  final start = t.substring(0, 2);
+  final end = t.substring(t.length - 1);
+  final middle = List.filled(t.length - 3, '*').join();
+  return '$start$middle$end';
+}
+
+final hint1 = _h1.text.trim().isEmpty ? _maskKeep2Head1Tail(p1) : _h1.text.trim();
+final hint2 = _h2.text.trim().isEmpty ? _maskKeep2Head1Tail(p2) : _h2.text.trim();
+final hint3 = _h3.text.trim().isEmpty ? _maskKeep2Head1Tail(p3) : _h3.text.trim();
+
+  final entry = WalletEntry(
+  id: const Uuid().v4(),
+  addressBase58: addrB58,
+  addressHex: addrHex,
+  encPrivateKeyB64: enc['ciphertextB64']!,
+  nonceB64: enc['nonceB64']!,
+  salt1B64: enc['salt1B64']!,
+  salt2B64: enc['salt2B64']!,
+  salt3B64: enc['salt3B64']!,
+  masterSaltB64: enc['masterSaltB64']!,
+  pbkdf2Iterations: iterations,
+  hint1: hint1,
+  hint2: hint2,
+  hint3: hint3,
+  createdAt: DateTime.now(),
+  version: 1,
+  name: _name.text.trim().isEmpty ? null : _name.text.trim(),
+);
+
 
       final box = Hive.box('wallets');
       await box.put(entry.id, entry.toJson());

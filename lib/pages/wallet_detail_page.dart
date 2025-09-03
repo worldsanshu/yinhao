@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:hive/hive.dart';
 // lib/pages/wallet_detail_page.dart
 import 'dart:convert';
 
@@ -25,6 +27,128 @@ class WalletDetailPage extends StatefulWidget {
 }
 
 class _WalletDetailPageState extends State<WalletDetailPage> {
+  int _secretTap = 0;
+Timer? _tapResetTimer;
+bool _showDeleteBtn = false;
+
+@override
+void dispose() {
+  _tapResetTimer?.cancel();
+  super.dispose();
+}
+
+/// 连续点击“钱包详情”统计，1.2秒内点满5次就显示删除按钮
+void _handleSecretTap() {
+  _tapResetTimer?.cancel();
+  _secretTap++;
+  _tapResetTimer = Timer(const Duration(milliseconds: 1200), () {
+    _secretTap = 0;
+  });
+  if (_secretTap >= 5 && !_showDeleteBtn) {
+    setState(() {
+      _showDeleteBtn = true;
+    });
+    _secretTap = 0;
+  }
+}
+
+Future<void> _confirmAndDelete() async {
+  final ok1 = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('确定删除该钱包？'),
+          content: const Text('此操作仅删除本地保存的信息（地址、密文和提示），不可恢复。'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('确定')),
+          ],
+        ),
+      ) ?? false;
+  if (!ok1 || !mounted) return;
+
+  final ok2 = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('再次确认'),
+          content: const Text('删除后将无法找回，是否继续？'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('继续删除', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      ) ?? false;
+  if (!ok2 || !mounted) return;
+
+  try {
+    await _deleteWalletById(widget.walletId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('钱包已删除')));
+    Navigator.of(context).pop(true);
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('删除失败：$e')));
+  }
+}
+
+Future<Box> _openWalletBoxCompat() async {
+  const primary = 'wallets';
+  const fallback = 'wallet_entries';
+
+  // 先尝试 wallets
+  try {
+    if (Hive.isBoxOpen(primary)) return Hive.box(primary);
+    return await Hive.openBox(primary); // 用动态 Box，兼容不同存储形态
+  } catch (_) {
+    // ignore and fallback
+  }
+
+  // 回退到 wallet_entries
+  if (Hive.isBoxOpen(fallback)) return Hive.box(fallback);
+  return await Hive.openBox(fallback);
+}
+
+Future<void> _deleteWalletById(String id) async {
+  final box = await _openWalletBoxCompat();
+
+  dynamic foundKey;
+
+  for (final k in box.keys) {
+    final v = box.get(k);
+
+    // 兼容两种存储：
+    // 1) 直接存 WalletEntry（需要已注册 Adapter）
+    // 2) 存 Map/JSON（如 {'id': '...'}）
+    String? vid;
+    if (v is WalletEntry) {
+      vid = v.id;
+    } else if (v is Map) {
+      // 常见字段名尝试一下
+      vid = (v['id'] ?? v['walletId'] ?? v['uid'])?.toString();
+    } else {
+      // 动态对象上也尝试拿 id
+      try {
+        // ignore: avoid_dynamic_calls
+        vid = (v as dynamic).id?.toString();
+      } catch (_) {}
+    }
+
+    if (vid == id) {
+      foundKey = k;
+      break;
+    }
+  }
+
+  if (foundKey != null) {
+    await box.delete(foundKey);
+  } else {
+    // 有的项目用 id 作为 key
+    await box.delete(id);
+  }
+}
+
   final GlobalKey<TronResourcesPanelState> _resKey = GlobalKey<TronResourcesPanelState>();
 
   String? _usdt;
@@ -72,8 +196,16 @@ class _WalletDetailPageState extends State<WalletDetailPage> {
    
     return Scaffold(
       appBar: AppBar(
-        title: const Text('钱包详情'),
+        title: GestureDetector(onTap: _handleSecretTap, child: const Text('钱包详情')),
         actions: [
+          
+if (_showDeleteBtn) IconButton(
+  icon: const Icon(Icons.delete_outline),
+  color: Colors.red,
+  tooltip: '删除此钱包',
+  onPressed: _confirmAndDelete,
+),
+
           // if (address != null && address.isNotEmpty)
           // TronActivityPanel.explorerAction(address),
         
@@ -393,7 +525,8 @@ SizedBox(
           );
         },
       ),
-    );
+    
+);
   }
 
   // =============== 逻辑 ===============

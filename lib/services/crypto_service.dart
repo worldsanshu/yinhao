@@ -31,7 +31,7 @@ import 'package:cryptography/cryptography.dart' as cg;
 import 'package:http/http.dart' as http;
 import 'package:pointycastle/digests/keccak.dart';
 import 'package:web3dart/crypto.dart' as w3c;
-
+import 'package:hive_flutter/hive_flutter.dart';
 class CryptoService {
   static final _rnd = Random.secure();
 
@@ -266,6 +266,7 @@ class TronAddressUtils {
 class TransferService {
   final String nodeUrl; // 例：https://api.trongrid.io 或自建 8090
   final String? tronProApiKey; // TronGrid 可选
+
   final http.Client _client;
 
   TransferService({
