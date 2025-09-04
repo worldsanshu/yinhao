@@ -8,7 +8,7 @@ import 'package:local_auth/local_auth.dart';
 class AppLockService {
   static const _kHash = 'app_lock_hash';
   static const _kSalt = 'app_lock_salt';
-  static const _kBio  = 'app_lock_bio_enabled';
+  static const _kBio = 'app_lock_bio_enabled';
 
   static const _storage = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
@@ -34,7 +34,8 @@ class AppLockService {
   }
 
   /// 仅数字 PIN；统一 trim，长度 4–8
-  static Future<void> setPin(String pin, {bool enableBiometrics = false}) async {
+  static Future<void> setPin(String pin,
+      {bool enableBiometrics = false}) async {
     final p = pin.trim();
     if (p.isEmpty || p.length < 4 || p.length > 8 || int.tryParse(p) == null) {
       throw PlatformException(code: 'INVALID_PIN', message: 'PIN 必须为 4–8 位数字');
@@ -43,7 +44,7 @@ class AppLockService {
     final hash = _hash(p, salt);
     await _storage.write(key: _kHash, value: hash);
     await _storage.write(key: _kSalt, value: salt);
-    await _storage.write(key: _kBio,  value: enableBiometrics ? '1' : '0');
+    await _storage.write(key: _kBio, value: enableBiometrics ? '1' : '0');
   }
 
   static Future<bool> verifyPin(String pin) async {
@@ -84,8 +85,8 @@ class AppLockService {
 
   /// 调试：读取当前状态
   static Future<Map<String, String?>> debugSnapshot() async => {
-    'hash': await _storage.read(key: _kHash),
-    'salt': await _storage.read(key: _kSalt),
-    'bio' : await _storage.read(key: _kBio),
-  };
+        'hash': await _storage.read(key: _kHash),
+        'salt': await _storage.read(key: _kSalt),
+        'bio': await _storage.read(key: _kBio),
+      };
 }

@@ -9,7 +9,8 @@ class BackupService {
       final e = WalletEntry.tryFrom(box.get(k));
       if (e != null) list.add(e.toJson());
     }
-    return const JsonEncoder.withIndent('  ').convert({'version': 1, 'entries': list});
+    return const JsonEncoder.withIndent('  ')
+        .convert({'version': 1, 'entries': list});
   }
 
   static int importFromJson(Box box, String jsonStr) {

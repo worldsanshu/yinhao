@@ -22,7 +22,10 @@ class _WalletImportPageState extends State<WalletImportPage> {
           children: [
             const Text('粘贴之前导出的加密JSON：'),
             const SizedBox(height: 8),
-            TextField(controller: _encCtrl, maxLines: 10, decoration: const InputDecoration(hintText: '{ ... }')),
+            TextField(
+                controller: _encCtrl,
+                maxLines: 10,
+                decoration: const InputDecoration(hintText: '{ ... }')),
             const SizedBox(height: 12),
             ElevatedButton(onPressed: _import, child: const Text('导入')),
           ],
@@ -34,15 +37,17 @@ class _WalletImportPageState extends State<WalletImportPage> {
   Future<void> _import() async {
     try {
       final entry = WalletEntry.importJson(_encCtrl.text);
-      final box =  Hive.box('wallets');
+      final box = Hive.box('wallets');
       await box.put(entry.id, entry);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('导入成功: ${entry.addressBase58}')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('导入成功: ${entry.addressBase58}')));
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('导入失败: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('导入失败: $e')));
       }
     }
   }

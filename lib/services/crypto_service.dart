@@ -32,6 +32,7 @@ import 'package:http/http.dart' as http;
 import 'package:pointycastle/digests/keccak.dart';
 import 'package:web3dart/crypto.dart' as w3c;
 import 'package:hive_flutter/hive_flutter.dart';
+
 class CryptoService {
   static final _rnd = Random.secure();
 
@@ -120,7 +121,10 @@ class CryptoService {
     final mk4 = await _hmac(masterSalt, _concat([k1, k3, k2]));
 
     final mkCandidates = <Uint8List>[mk1, mk2, mk3, mk4];
-    final aeadCandidates = <_AeadSpec>[_AeadSpec.aesGcm, _AeadSpec.chacha20poly1305];
+    final aeadCandidates = <_AeadSpec>[
+      _AeadSpec.aesGcm,
+      _AeadSpec.chacha20poly1305
+    ];
 
     for (final mk in mkCandidates) {
       for (final algo in aeadCandidates) {
@@ -165,7 +169,8 @@ class CryptoService {
   }
 
   // --- 工具：PBKDF2(HMAC-SHA256) / HMAC / 拼接 / XOR ---
-  static Future<Uint8List> _derive(String pass, List<int> salt, int iters) async {
+  static Future<Uint8List> _derive(
+      String pass, List<int> salt, int iters) async {
     final key = await cg.Pbkdf2(
       macAlgorithm: cg.Hmac.sha256(),
       iterations: iters,
@@ -224,7 +229,9 @@ class TronAddressUtils {
     keccak.doFinal(hash, 0);
 
     final addr20 = hash.sublist(12); // 取后 20 字节
-    final addr21 = Uint8List(addr20.length + 1)..[0] = 0x41..setAll(1, addr20);
+    final addr21 = Uint8List(addr20.length + 1)
+      ..[0] = 0x41
+      ..setAll(1, addr20);
 
     final hex41 = '41' + convert.hex.encode(addr20).toUpperCase();
     final base58 = bs58check.encode(addr21);
@@ -260,7 +267,8 @@ class TronAddressUtils {
     return '41' + convert.hex.encode(payload.sublist(1)).toUpperCase();
   }
 
-  static bool _eqIgnoreCase(String a, String b) => a.toLowerCase() == b.toLowerCase();
+  static bool _eqIgnoreCase(String a, String b) =>
+      a.toLowerCase() == b.toLowerCase();
 }
 
 class TransferService {
@@ -277,7 +285,8 @@ class TransferService {
 
   Map<String, String> get _headers => {
         'content-type': 'application/json',
-        if (tronProApiKey != null && tronProApiKey!.isNotEmpty) 'TRON-PRO-API-KEY': tronProApiKey!,
+        if (tronProApiKey != null && tronProApiKey!.isNotEmpty)
+          'TRON-PRO-API-KEY': tronProApiKey!,
       };
 
   /// 发送 TRX（1 TRX = 1e6 sun）
@@ -356,9 +365,11 @@ class TransferService {
 
   // ---- 内部工具 ----
 
-  Future<Map<String, dynamic>> _postJson(String path, Map<String, dynamic> body) async {
+  Future<Map<String, dynamic>> _postJson(
+      String path, Map<String, dynamic> body) async {
     final uri = Uri.parse(_join(nodeUrl, path));
-    final res = await _client.post(uri, headers: _headers, body: jsonEncode(body));
+    final res =
+        await _client.post(uri, headers: _headers, body: jsonEncode(body));
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw Exception('HTTP ${res.statusCode}: ${res.body}');
     }
@@ -377,7 +388,8 @@ class TransferService {
     Map<String, dynamic> tx,
     Uint8List privateKey,
   ) async {
-    final rawHex = (tx['raw_data_hex'] ?? tx['raw_data']?.toString()) as String?;
+    final rawHex =
+        (tx['raw_data_hex'] ?? tx['raw_data']?.toString()) as String?;
     if (rawHex == null) throw Exception('交易原文缺失 (raw_data_hex)');
 
     final rawBytes = _hexToBytes(rawHex);
@@ -430,6 +442,46 @@ class TransferService {
     // 将 BigInt 转为固定长度字节（左侧补零）
     final hexStr = i.toRadixString(16).padLeft(len * 2, '0');
     return Uint8List.fromList(convert.hex.decode(hexStr));
+  }
+
+  /// Dry-run USDT transfer to estimate energy and validate before broadcasting.
+  /// Returns the raw response from triggerconstantcontract.
+  Future<Map<String, dynamic>> dryRunUsdtTransfer({
+    required String fromBase58,
+    required String toBase58,
+    required BigInt usdt6,
+    required String contractBase58,
+  }) async {
+    final fromHex41 = TronAddressUtils.base58ToHex41(fromBase58);
+    final toHex41 = TronAddressUtils.base58ToHex41(toBase58);
+    final contractHex41 = TronAddressUtils.base58ToHex41(contractBase58);
+
+    final paramsHex = _encodeTrc20TransferParams(toHex41, usdt6);
+
+    final resp = await _postJson('/wallet/triggerconstantcontract', {
+      'owner_address': fromHex41,
+      'contract_address': contractHex41,
+      'function_selector': 'transfer(address,uint256)',
+      'parameter': paramsHex,
+      'visible': false,
+    });
+    if (resp is Map<String, dynamic>) return resp;
+    return {'raw': resp};
+  }
+
+  /// Encode TRC20 transfer(address,uint256) parameters.
+  /// `toHex41` should be a 0x41-prefixed hex address string.
+  String _encodeTrc20TransferParams(String toHex41, BigInt amount) {
+    String clean = toHex41.toLowerCase();
+    if (clean.startsWith('0x')) clean = clean.substring(2);
+    // Tron hex address starts with '41' then 20-byte address.
+    if (clean.startsWith('41')) clean = clean.substring(2);
+    // Left-pad address to 32 bytes (64 hex chars).
+    final addrPadded = clean.padLeft(64, '0');
+    // Amount to hex, left-pad to 32 bytes.
+    final amtHex = amount.toRadixString(16);
+    final amtPadded = amtHex.padLeft(64, '0');
+    return addrPadded + amtPadded;
   }
 }
 
@@ -537,3 +589,10 @@ class EncryptedPrivateKey {
   @override
   String toString() => jsonEncode(asMap());
 }
+
+
+
+/// Dry-run USDT transfer to estimate energy and validate before broadcasting.
+/// Returns the raw response from triggerconstantcontract.
+
+

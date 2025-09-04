@@ -44,14 +44,21 @@ class _HomePageState extends State<HomePage> {
     final (trx, usdt) = await s.balances(e.addressBase58);
     final txs = await _client.recentUsdtTransfers(e.addressBase58, limit: 5);
     if (!mounted) return;
-    setState(() { _dTrx = trx; _dUsdt = usdt; _recent = txs; });
+    setState(() {
+      _dTrx = trx;
+      _dUsdt = usdt;
+      _recent = txs;
+    });
   }
 
   void _setDefault(String id) {
     _settings.put('default_wallet_id', id);
-    setState(() { _defaultId = id; });
+    setState(() {
+      _defaultId = id;
+    });
     _loadDefaultSummary();
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已设为默认钱包')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('已设为默认钱包')));
   }
 
   @override
@@ -62,7 +69,8 @@ class _HomePageState extends State<HomePage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage())),
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const SettingsPage())),
           )
         ],
       ),
@@ -84,17 +92,29 @@ class _HomePageState extends State<HomePage> {
                 }
                 return ListView.separated(
                   itemCount: keys.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1, thickness: 0.2),
+                  separatorBuilder: (_, __) =>
+                      const Divider(height: 1, thickness: 0.2),
                   itemBuilder: (_, i) {
                     final id = keys[i];
                     final entry = box.get(id)!;
                     final isDefault = id == _defaultId;
                     return ListTile(
-                      leading: Icon(isDefault ? Icons.star : Icons.account_balance_wallet_outlined, color: isDefault ? Colors.amber : null),
-                      title: Text(entry.addressBase58, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      leading: Icon(
+                          isDefault
+                              ? Icons.star
+                              : Icons.account_balance_wallet_outlined,
+                          color: isDefault ? Colors.amber : null),
+                      title: Text(entry.addressBase58,
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
                       subtitle: Text('创建时间：${entry.createdAt.toLocal()}'),
-                      trailing: IconButton(icon: const Icon(Icons.more_horiz), onPressed: () => _walletActions(entry)),
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => WalletDetailPage(walletId: entry.id))),
+                      trailing: IconButton(
+                          icon: const Icon(Icons.more_horiz),
+                          onPressed: () => _walletActions(entry)),
+                      onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) =>
+                                  WalletDetailPage(walletId: entry.id))),
                     );
                   },
                 );
@@ -118,8 +138,12 @@ class _HomePageState extends State<HomePage> {
             Row(children: [
               const Icon(Icons.star, color: Colors.amber),
               const SizedBox(width: 6),
-              Expanded(child: Text('默认钱包：${e.addressBase58}', overflow: TextOverflow.ellipsis)),
-              IconButton(icon: const Icon(Icons.refresh), onPressed: _loadDefaultSummary),
+              Expanded(
+                  child: Text('默认钱包：${e.addressBase58}',
+                      overflow: TextOverflow.ellipsis)),
+              IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadDefaultSummary),
             ]),
             const SizedBox(height: 8),
             Row(children: [
@@ -129,10 +153,15 @@ class _HomePageState extends State<HomePage> {
             ]),
             if (_recent.isNotEmpty) ...[
               const SizedBox(height: 8),
-              const Text('最近交易（TRC20）：', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text('最近交易（TRC20）：',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
               for (final t in _recent)
-                Text('${t['type'] ?? ''} ${t['value'] ?? ''} -> ${t['to'] ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                Text(
+                    '${t['type'] ?? ''} ${t['value'] ?? ''} -> ${t['to'] ?? ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12)),
             ]
           ],
         ),
@@ -142,7 +171,8 @@ class _HomePageState extends State<HomePage> {
 
   Widget _metric(String title, String value) {
     return Column(children: [
-      Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+      Text(title,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
       const SizedBox(height: 8),
       Text(value, style: const TextStyle(fontSize: 18)),
     ]);
@@ -154,67 +184,86 @@ class _HomePageState extends State<HomePage> {
       builder: (_) => SafeArea(
         child: Wrap(
           children: [
-            ListTile(leading: const Icon(Icons.copy), title: const Text('复制地址'), onTap: () {
-              Clipboard.setData(ClipboardData(text: entry.addressBase58));
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已复制地址')));
-            }),
-           ListTile(
-  leading: const Icon(Icons.qr_code),
-  title: const Text('查看二维码'),
-  onTap: () async {
-    Navigator.pop(context); // 先收起底部面板
-    await Future.delayed(const Duration(milliseconds: 60));
-    if (!context.mounted) return;
+            ListTile(
+                leading: const Icon(Icons.copy),
+                title: const Text('复制地址'),
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: entry.addressBase58));
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(const SnackBar(content: Text('已复制地址')));
+                }),
+            ListTile(
+              leading: const Icon(Icons.qr_code),
+              title: const Text('查看二维码'),
+              onTap: () async {
+                Navigator.pop(context); // 先收起底部面板
+                await Future.delayed(const Duration(milliseconds: 60));
+                if (!context.mounted) return;
 
-    await showGeneralDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: 'address-qr',
-      barrierColor: Colors.black87,
-      pageBuilder: (ctx, a1, a2) {
-        final size = MediaQuery.of(ctx).size;
-        final side = (size.shortestSide * 0.82).clamp(240.0, 420.0);
-        return SafeArea(
-          child: Center(
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                width: side + 32,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Theme.of(ctx).cardColor,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('地址二维码', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: side, height: side,
-                      child: Center(child: FittedBox(child: QrImageView(data: entry.addressBase58, size: side))),
-                    ),
-                    const SizedBox(height: 8),
-                    SelectableText(entry.addressBase58, style: const TextStyle(fontSize: 12), textAlign: TextAlign.center),
-                  ],
-                ),
-              ),
+                await showGeneralDialog(
+                  context: context,
+                  barrierDismissible: true,
+                  barrierLabel: 'address-qr',
+                  barrierColor: Colors.black87,
+                  pageBuilder: (ctx, a1, a2) {
+                    final size = MediaQuery.of(ctx).size;
+                    final side = (size.shortestSide * 0.82).clamp(240.0, 420.0);
+                    return SafeArea(
+                      child: Center(
+                        child: Material(
+                          color: Colors.transparent,
+                          child: Container(
+                            width: side + 32,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Theme.of(ctx).cardColor,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('地址二维码',
+                                    style:
+                                        TextStyle(fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: side,
+                                  height: side,
+                                  child: Center(
+                                      child: FittedBox(
+                                          child: QrImageView(
+                                              data: entry.addressBase58,
+                                              size: side))),
+                                ),
+                                const SizedBox(height: 8),
+                                SelectableText(entry.addressBase58,
+                                    style: const TextStyle(fontSize: 12),
+                                    textAlign: TextAlign.center),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
             ),
-          ),
-        );
-      },
-    );
-  },
-),
- ListTile(leading: const Icon(Icons.ios_share), title: const Text('快捷导出备份(JSON)'), onTap: () async {
-              await Share.share(entry.exportJson());
-              if (mounted) Navigator.pop(context);
-            }),
-            ListTile(leading: const Icon(Icons.star), title: const Text('设为默认钱包'), onTap: () {
-              Navigator.pop(context);
-              _setDefault(entry.id);
-            }),
+            ListTile(
+                leading: const Icon(Icons.ios_share),
+                title: const Text('快捷导出备份(JSON)'),
+                onTap: () async {
+                  await Share.share(entry.exportJson());
+                  if (mounted) Navigator.pop(context);
+                }),
+            ListTile(
+                leading: const Icon(Icons.star),
+                title: const Text('设为默认钱包'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _setDefault(entry.id);
+                }),
           ],
         ),
       ),
@@ -227,12 +276,13 @@ class _HomePageState extends State<HomePage> {
       builder: (_) => SafeArea(
         child: Wrap(
           children: [
-               ListTile(
+            ListTile(
               leading: const Icon(Icons.key),
               title: const Text('U钱包列表'),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletListPage()));
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const WalletListPage()));
               },
             ),
             ListTile(
@@ -240,7 +290,10 @@ class _HomePageState extends State<HomePage> {
               title: const Text('创建新钱包'),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletCreatePage()));
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const WalletCreatePage()));
               },
             ),
             ListTile(
@@ -248,7 +301,10 @@ class _HomePageState extends State<HomePage> {
               title: const Text('导入加密密文'),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletImportPage()));
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const WalletImportPage()));
               },
             ),
           ],

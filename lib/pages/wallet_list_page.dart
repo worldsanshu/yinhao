@@ -38,10 +38,10 @@ class _WalletListPageState extends State<WalletListPage> {
     // 读取缓存，保证首屏有数
     final t = s.get('totals_balances') as Map?;
     _totalUsdt = t?['usdt'] as String?;
-    _totalTrx  = t?['trx']  as String?;
+    _totalTrx = t?['trx'] as String?;
     final d = s.get('default_balances') as Map?;
     _defaultUsdt = d?['usdt'] as String?;
-    _defaultTrx  = d?['trx']  as String?;
+    _defaultTrx = d?['trx'] as String?;
   }
 
   @override
@@ -130,20 +130,17 @@ class _WalletListPageState extends State<WalletListPage> {
                     separatorBuilder: (_, __) =>
                         const Divider(height: 1, thickness: 0.2),
                     itemBuilder: (_, i) {
-                      final e =
-                          WalletEntry.tryFrom(wallets.get(keys[i]));
+                      final e = WalletEntry.tryFrom(wallets.get(keys[i]));
                       if (e == null) {
                         return const ListTile(title: Text('未知条目'));
                       }
 
                       // 星标：isDefault==true 或 id == settings.default_wallet_id
-                      final isDefault =
-                          (e.isDefault ?? false) ||
+                      final isDefault = (e.isDefault ?? false) ||
                           (defaultId != null && e.id == defaultId);
 
                       final hasName = (e.name?.trim().isNotEmpty ?? false);
-                      final title =
-                          hasName ? e.name!.trim() : e.addressBase58;
+                      final title = hasName ? e.name!.trim() : e.addressBase58;
                       final subtitle = hasName
                           ? e.addressBase58
                           : '创建于 ${e.createdAt.toLocal().toString().split('.').first}';
@@ -172,8 +169,8 @@ class _WalletListPageState extends State<WalletListPage> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                      builder: (_) => WalletDetailPage(
-                                          walletId: e.id)),
+                                      builder: (_) =>
+                                          WalletDetailPage(walletId: e.id)),
                                 );
                                 break;
                             }
@@ -193,8 +190,7 @@ class _WalletListPageState extends State<WalletListPage> {
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) =>
-                                  WalletDetailPage(walletId: e.id)),
+                              builder: (_) => WalletDetailPage(walletId: e.id)),
                         ),
                       );
                     },
@@ -219,15 +215,19 @@ class _WalletListPageState extends State<WalletListPage> {
     // 渐变：浅色蓝→青 / 深色石板
     final gradient = LinearGradient(
       colors: isDark
-          ? const [Color(0xFF1E293B), Color(0xFF0F172A)] // slate-800 → slate-900
+          ? const [
+              Color(0xFF1E293B),
+              Color(0xFF0F172A)
+            ] // slate-800 → slate-900
           : const [Color(0xFF2563EB), Color(0xFF06B6D4)], // blue-600 → cyan-500
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     );
 
     // 卡片内块底色 & 前景色（保证对比度）
-    final tileBg =
-        isDark ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.90);
+    final tileBg = isDark
+        ? Colors.white.withOpacity(0.08)
+        : Colors.white.withOpacity(0.90);
     final tileFg = isDark ? Colors.white : Colors.black87;
 
     // 展示值（可隐藏）
@@ -237,8 +237,8 @@ class _WalletListPageState extends State<WalletListPage> {
     final defTrx = _hideBalances ? '***' : (_defaultTrx ?? '--');
 
     // 上次更新时间
-    final ts = (Hive.box('settings').get('totals_balances') as Map?)?['ts']
-        as String?;
+    final ts =
+        (Hive.box('settings').get('totals_balances') as Map?)?['ts'] as String?;
     final tsText = ts == null ? '' : '上次 ${ts.split(".").first}';
 
     return Container(
@@ -266,8 +266,7 @@ class _WalletListPageState extends State<WalletListPage> {
                       ?.copyWith(color: Colors.white)),
               const SizedBox(width: 8),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.black.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(999),
@@ -421,7 +420,8 @@ class _WalletListPageState extends State<WalletListPage> {
   }
 
   // 下拉或按钮刷新：总资产 + 默认余额
-  Future<void> _refreshAll(List<dynamic> keys, WalletEntry? defaultWallet) async {
+  Future<void> _refreshAll(
+      List<dynamic> keys, WalletEntry? defaultWallet) async {
     await Future.wait([
       _refreshTotals(keys),
       if (defaultWallet != null) _refreshDefaultBalances(defaultWallet),
@@ -430,9 +430,8 @@ class _WalletListPageState extends State<WalletListPage> {
 
   // 根据当前设置的网关创建服务（即时生效）
   UsdtService _svc() {
-    final ep =
-        (Hive.box('settings').get('tron_endpoint') as String?) ??
-            'https://api.trongrid.io';
+    final ep = (Hive.box('settings').get('tron_endpoint') as String?) ??
+        'https://api.trongrid.io';
     return UsdtService(TronClient(endpoint: ep));
   }
 
@@ -521,8 +520,7 @@ class _WalletListPageState extends State<WalletListPage> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消')),
+              onPressed: () => Navigator.pop(context), child: const Text('取消')),
           FilledButton(
               onPressed: () => Navigator.pop(context, ctl.text.trim()),
               child: const Text('确定')),

@@ -58,15 +58,19 @@ class _EnergyPurchasePageState extends State<EnergyPurchasePage> {
     if (preset != null && preset.isNotEmpty) {
       _toCtl.text = preset;
       // 如果命中“固定地址”键，则默认锁住输入框
-      _addrLocked = (settings.get('energy_purchase_to') as String?) == preset || (settings.get('trx_default_to') as String?) == preset;
+      _addrLocked = (settings.get('energy_purchase_to') as String?) == preset ||
+          (settings.get('trx_default_to') as String?) == preset;
     }
 
-        // 优先级：energy_purchase_to > trx_default_to > energy_target_address(兼容旧键) > energy_last_to
-    final trxnum = (settings.get('energy_purchase_to_number') as String?) ?? '10';
+    // 优先级：energy_purchase_to > trx_default_to > energy_target_address(兼容旧键) > energy_last_to
+    final trxnum =
+        (settings.get('energy_purchase_to_number') as String?) ?? '10';
     if (trxnum != null && trxnum.isNotEmpty) {
       _amtCtl.text = trxnum;
       // 如果命中“固定地址”键，则默认锁住输入框
-      _addrLocked = (settings.get('energy_purchase_to_number') as String?) == trxnum || (settings.get('energy_purchase_to_number') as String?) == trxnum;
+      _addrLocked =
+          (settings.get('energy_purchase_to_number') as String?) == trxnum ||
+              (settings.get('energy_purchase_to_number') as String?) == trxnum;
     }
   }
 
@@ -119,19 +123,23 @@ class _EnergyPurchasePageState extends State<EnergyPurchasePage> {
     if (!_formKey.currentState!.validate()) return;
     final entry = _entry;
     if (entry == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('钱包不存在或已被删除')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('钱包不存在或已被删除')));
       return;
     }
 
     setState(() => _loading = true);
     try {
       // 口令先验校验：失败会抛异常或返回 false
-      final ok = await CryptoService.verifyPasswords(entry, _p1Ctl.text, _p2Ctl.text, _p3Ctl.text);
+      final ok = await CryptoService.verifyPasswords(
+          entry, _p1Ctl.text, _p2Ctl.text, _p3Ctl.text);
       if (!ok) throw Exception('口令错误');
 
-      final pk = await CryptoService.decryptPrivateKeyWithThreePasswords(entry, _p1Ctl.text, _p2Ctl.text, _p3Ctl.text);
+      final pk = await CryptoService.decryptPrivateKeyWithThreePasswords(
+          entry, _p1Ctl.text, _p2Ctl.text, _p3Ctl.text);
 
-      final ep = (Hive.box('settings').get('tron_endpoint') as String?) ?? 'https://api.trongrid.io';
+      final ep = (Hive.box('settings').get('tron_endpoint') as String?) ??
+          'https://api.trongrid.io';
       final apiKey = Hive.box('settings').get('trongrid_api_key') as String?;
       final svc = TransferService(nodeUrl: ep, tronProApiKey: apiKey);
 
@@ -158,10 +166,13 @@ class _EnergyPurchasePageState extends State<EnergyPurchasePage> {
           title: const Text('已发起转账（购买能量）'),
           content: SelectableText('TxID: $txid'),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('关闭')),
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('关闭')),
             FilledButton(
               onPressed: () {
-                final url = Uri.parse('https://tronscan.org/#/transaction/$txid');
+                final url =
+                    Uri.parse('https://tronscan.org/#/transaction/$txid');
                 launchUrl(url, mode: LaunchMode.externalApplication);
               },
               child: const Text('在区块浏览器查看'),
@@ -173,7 +184,8 @@ class _EnergyPurchasePageState extends State<EnergyPurchasePage> {
       if (mounted) Navigator.pop(context, txid); // 返回上一页
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('购买能量失败：$e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('购买能量失败：$e')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -208,12 +220,14 @@ class _EnergyPurchasePageState extends State<EnergyPurchasePage> {
                     const Spacer(),
                     IconButton(
                       tooltip: _addrLocked ? '已从配置自动填入，点此解锁编辑' : '未锁定，可编辑',
-                      onPressed: () => setState(() => _addrLocked = !_addrLocked),
+                      onPressed: () =>
+                          setState(() => _addrLocked = !_addrLocked),
                       icon: Icon(_addrLocked ? Icons.lock : Icons.lock_open),
                     ),
                     IconButton(
                       tooltip: '前往设置',
-                      onPressed: () => Navigator.of(context).pushNamed('/settings'),
+                      onPressed: () =>
+                          Navigator.of(context).pushNamed('/settings'),
                       icon: const Icon(Icons.settings),
                     ),
                   ],
@@ -224,7 +238,8 @@ class _EnergyPurchasePageState extends State<EnergyPurchasePage> {
                   readOnly: _addrLocked,
                   decoration: InputDecoration(
                     hintText: '例如：TKSQ...',
-                    prefixIcon: const Icon(Icons.account_balance_wallet_outlined),
+                    prefixIcon:
+                        const Icon(Icons.account_balance_wallet_outlined),
                     suffixIcon: IconButton(
                       tooltip: '扫码填入',
                       icon: const Icon(Icons.qr_code_scanner),
@@ -245,7 +260,8 @@ class _EnergyPurchasePageState extends State<EnergyPurchasePage> {
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _amtCtl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(
                     hintText: '最多 6 位小数',
                     prefixIcon: Icon(Icons.numbers),
@@ -262,26 +278,25 @@ class _EnergyPurchasePageState extends State<EnergyPurchasePage> {
                     IconButton(
                       tooltip: _obscure ? '显示口令' : '隐藏口令',
                       onPressed: () => setState(() => _obscure = !_obscure),
-                      icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                      icon: Icon(
+                          _obscure ? Icons.visibility : Icons.visibility_off),
                     )
                   ],
                 ),
-
-            
-
-
                 TextFormField(
                   controller: _p1Ctl,
                   obscureText: _obscure,
                   decoration: const InputDecoration(hintText: '口令一'),
                   validator: _vPass,
                 ),
-                  if ((_entry?.hint1?.trim().isNotEmpty ?? false))
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text('提示：${_entry!.hint1!}',
-                          style: const TextStyle(fontSize: 12, color: Color.fromARGB(137, 200, 200, 200))),
-                    ),
+                if ((_entry?.hint1?.trim().isNotEmpty ?? false))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text('提示：${_entry!.hint1!}',
+                        style: const TextStyle(
+                            fontSize: 12,
+                            color: Color.fromARGB(137, 200, 200, 200))),
+                  ),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _p2Ctl,
@@ -289,12 +304,14 @@ class _EnergyPurchasePageState extends State<EnergyPurchasePage> {
                   decoration: const InputDecoration(hintText: '口令二'),
                   validator: _vPass,
                 ),
-                   if ((_entry?.hint2?.trim().isNotEmpty ?? false))
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text('提示：${_entry!.hint2!}',
-                          style: const TextStyle(fontSize: 12, color: Color.fromARGB(137, 200, 200, 200))),
-                    ),
+                if ((_entry?.hint2?.trim().isNotEmpty ?? false))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text('提示：${_entry!.hint2!}',
+                        style: const TextStyle(
+                            fontSize: 12,
+                            color: Color.fromARGB(137, 200, 200, 200))),
+                  ),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _p3Ctl,
@@ -302,19 +319,24 @@ class _EnergyPurchasePageState extends State<EnergyPurchasePage> {
                   decoration: const InputDecoration(hintText: '口令三'),
                   validator: _vPass,
                 ),
-                   if ((_entry?.hint3?.trim().isNotEmpty ?? false))
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text('提示：${_entry!.hint3!}',
-                            style: const TextStyle(fontSize: 12, color: Color.fromARGB(137, 200, 200, 200))),
-                    ),
+                if ((_entry?.hint3?.trim().isNotEmpty ?? false))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text('提示：${_entry!.hint3!}',
+                        style: const TextStyle(
+                            fontSize: 12,
+                            color: Color.fromARGB(137, 200, 200, 200))),
+                  ),
                 const SizedBox(height: 18),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
                     onPressed: _loading ? null : _submit,
                     icon: _loading
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.bolt),
                     label: const Text('确认购买能量'),
                   ),

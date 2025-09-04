@@ -66,7 +66,8 @@ class _WalletImportPageState extends State<WalletImportPage> {
               maxLines: 12,
               autocorrect: false,
               decoration: const InputDecoration(
-                hintText: '{ "id": "...", "addressBase58": "...", ... }  或  [ {...}, {...} ]',
+                hintText:
+                    '{ "id": "...", "addressBase58": "...", ... }  或  [ {...}, {...} ]',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -331,7 +332,9 @@ class _WalletImportPageState extends State<WalletImportPage> {
           // 覆盖合并（保留旧 isDefault / createdAt）
           final merged = (dup ?? e).copyWith(
             // 名称：保留旧值；若旧为空则用新值
-            name: (dup?.name == null || dup!.name!.trim().isEmpty) ? e.name : dup!.name,
+            name: (dup?.name == null || dup!.name!.trim().isEmpty)
+                ? e.name
+                : dup!.name,
             encPrivateKeyB64: e.encPrivateKeyB64,
             nonceB64: e.nonceB64,
             salt1B64: e.salt1B64,
@@ -430,8 +433,10 @@ class _WalletImportPageState extends State<WalletImportPage> {
 
   // 规范化（比较用）
   String _norm58(String s) => s.trim();
-  String _normHex(String s) =>
-      s.replaceAll(RegExp(r'^0x', caseSensitive: false), '').toUpperCase().trim();
+  String _normHex(String s) => s
+      .replaceAll(RegExp(r'^0x', caseSensitive: false), '')
+      .toUpperCase()
+      .trim();
 
   void _clearPreview() {
     for (final it in _items) {

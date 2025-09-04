@@ -18,6 +18,7 @@ import '../widgets/tron_activity.dart';
 import '../widgets/explorer_sheet.dart';
 import '../widgets/tron_resources.dart';
 import 'energy_purchase_page.dart';
+
 class WalletDetailPage extends StatefulWidget {
   const WalletDetailPage({super.key, required this.walletId});
   final String walletId;
@@ -28,128 +29,139 @@ class WalletDetailPage extends StatefulWidget {
 
 class _WalletDetailPageState extends State<WalletDetailPage> {
   int _secretTap = 0;
-Timer? _tapResetTimer;
-bool _showDeleteBtn = false;
+  Timer? _tapResetTimer;
+  bool _showDeleteBtn = false;
 
-@override
-void dispose() {
-  _tapResetTimer?.cancel();
-  super.dispose();
-}
+  @override
+  void dispose() {
+    _tapResetTimer?.cancel();
+    super.dispose();
+  }
 
-/// 连续点击“钱包详情”统计，1.2秒内点满5次就显示删除按钮
-void _handleSecretTap() {
-  _tapResetTimer?.cancel();
-  _secretTap++;
-  _tapResetTimer = Timer(const Duration(milliseconds: 1200), () {
-    _secretTap = 0;
-  });
-  if (_secretTap >= 5 && !_showDeleteBtn) {
-    setState(() {
-      _showDeleteBtn = true;
+  /// 连续点击“钱包详情”统计，1.2秒内点满5次就显示删除按钮
+  void _handleSecretTap() {
+    _tapResetTimer?.cancel();
+    _secretTap++;
+    _tapResetTimer = Timer(const Duration(milliseconds: 1200), () {
+      _secretTap = 0;
     });
-    _secretTap = 0;
-  }
-}
-
-Future<void> _confirmAndDelete() async {
-  final ok1 = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('确定删除该钱包？'),
-          content: const Text('此操作仅删除本地保存的信息（地址、密文和提示），不可恢复。'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('确定')),
-          ],
-        ),
-      ) ?? false;
-  if (!ok1 || !mounted) return;
-
-  final ok2 = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('再次确认'),
-          content: const Text('删除后将无法找回，是否继续？'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('继续删除', style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        ),
-      ) ?? false;
-  if (!ok2 || !mounted) return;
-
-  try {
-    await _deleteWalletById(widget.walletId);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('钱包已删除')));
-    Navigator.of(context).pop(true);
-  } catch (e) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('删除失败：$e')));
-  }
-}
-
-Future<Box> _openWalletBoxCompat() async {
-  const primary = 'wallets';
-  const fallback = 'wallet_entries';
-
-  // 先尝试 wallets
-  try {
-    if (Hive.isBoxOpen(primary)) return Hive.box(primary);
-    return await Hive.openBox(primary); // 用动态 Box，兼容不同存储形态
-  } catch (_) {
-    // ignore and fallback
+    if (_secretTap >= 5 && !_showDeleteBtn) {
+      setState(() {
+        _showDeleteBtn = true;
+      });
+      _secretTap = 0;
+    }
   }
 
-  // 回退到 wallet_entries
-  if (Hive.isBoxOpen(fallback)) return Hive.box(fallback);
-  return await Hive.openBox(fallback);
-}
+  Future<void> _confirmAndDelete() async {
+    final ok1 = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('确定删除该钱包？'),
+            content: const Text('此操作仅删除本地保存的信息（地址、密文和提示），不可恢复。'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('取消')),
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('确定')),
+            ],
+          ),
+        ) ??
+        false;
+    if (!ok1 || !mounted) return;
 
-Future<void> _deleteWalletById(String id) async {
-  final box = await _openWalletBoxCompat();
+    final ok2 = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('再次确认'),
+            content: const Text('删除后将无法找回，是否继续？'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('取消')),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('继续删除', style: TextStyle(color: Colors.red)),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!ok2 || !mounted) return;
 
-  dynamic foundKey;
+    try {
+      await _deleteWalletById(widget.walletId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('钱包已删除')));
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('删除失败：$e')));
+    }
+  }
 
-  for (final k in box.keys) {
-    final v = box.get(k);
+  Future<Box> _openWalletBoxCompat() async {
+    const primary = 'wallets';
+    const fallback = 'wallet_entries';
 
-    // 兼容两种存储：
-    // 1) 直接存 WalletEntry（需要已注册 Adapter）
-    // 2) 存 Map/JSON（如 {'id': '...'}）
-    String? vid;
-    if (v is WalletEntry) {
-      vid = v.id;
-    } else if (v is Map) {
-      // 常见字段名尝试一下
-      vid = (v['id'] ?? v['walletId'] ?? v['uid'])?.toString();
+    // 先尝试 wallets
+    try {
+      if (Hive.isBoxOpen(primary)) return Hive.box(primary);
+      return await Hive.openBox(primary); // 用动态 Box，兼容不同存储形态
+    } catch (_) {
+      // ignore and fallback
+    }
+
+    // 回退到 wallet_entries
+    if (Hive.isBoxOpen(fallback)) return Hive.box(fallback);
+    return await Hive.openBox(fallback);
+  }
+
+  Future<void> _deleteWalletById(String id) async {
+    final box = await _openWalletBoxCompat();
+
+    dynamic foundKey;
+
+    for (final k in box.keys) {
+      final v = box.get(k);
+
+      // 兼容两种存储：
+      // 1) 直接存 WalletEntry（需要已注册 Adapter）
+      // 2) 存 Map/JSON（如 {'id': '...'}）
+      String? vid;
+      if (v is WalletEntry) {
+        vid = v.id;
+      } else if (v is Map) {
+        // 常见字段名尝试一下
+        vid = (v['id'] ?? v['walletId'] ?? v['uid'])?.toString();
+      } else {
+        // 动态对象上也尝试拿 id
+        try {
+          // ignore: avoid_dynamic_calls
+          vid = (v as dynamic).id?.toString();
+        } catch (_) {}
+      }
+
+      if (vid == id) {
+        foundKey = k;
+        break;
+      }
+    }
+
+    if (foundKey != null) {
+      await box.delete(foundKey);
     } else {
-      // 动态对象上也尝试拿 id
-      try {
-        // ignore: avoid_dynamic_calls
-        vid = (v as dynamic).id?.toString();
-      } catch (_) {}
-    }
-
-    if (vid == id) {
-      foundKey = k;
-      break;
+      // 有的项目用 id 作为 key
+      await box.delete(id);
     }
   }
 
-  if (foundKey != null) {
-    await box.delete(foundKey);
-  } else {
-    // 有的项目用 id 作为 key
-    await box.delete(id);
-  }
-}
-
-  final GlobalKey<TronResourcesPanelState> _resKey = GlobalKey<TronResourcesPanelState>();
+  final GlobalKey<TronResourcesPanelState> _resKey =
+      GlobalKey<TronResourcesPanelState>();
 
   String? _usdt;
   String? _trx;
@@ -159,9 +171,9 @@ Future<void> _deleteWalletById(String id) async {
   void initState() {
     super.initState();
     // 可选：读取缓存，首屏显示更快（若之前有缓存）
-    final cache =
-        (Hive.box('settings').get('detail_balances_${widget.walletId}') as Map?) ??
-            {};
+    final cache = (Hive.box('settings')
+            .get('detail_balances_${widget.walletId}') as Map?) ??
+        {};
     _usdt = cache['usdt'] as String?;
     _trx = cache['trx'] as String?;
   }
@@ -174,8 +186,9 @@ Future<void> _deleteWalletById(String id) async {
     final settings = Hive.box('settings');
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final tileBg =
-        isDark ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.90);
+    final tileBg = isDark
+        ? Colors.white.withOpacity(0.08)
+        : Colors.white.withOpacity(0.90);
     final tileFg = isDark ? Colors.white : Colors.black87;
 
     // 用 AnimatedBuilder 监听两个 box（避免 ValueListenable 类型不匹配）
@@ -183,42 +196,44 @@ Future<void> _deleteWalletById(String id) async {
       wallets.listenable(),
       settings.listenable(),
     ]);
-    debugPrint('box=${wallets.name}, length=${wallets.length}');
- 
-    for (final key in wallets.keys) {
-      debugPrint('[$key] => ${wallets.get(key)}');
-    }
-    debugPrint(wallets.toMap().toString()); // 内容多会自动分行
+    // debugPrint('box=${wallets.name}, length=${wallets.length}');
+
+    // for (final key in wallets.keys) {
+    //   debugPrint('[$key] => ${wallets.get(key)}');
+    // }
+    // debugPrint(wallets.toMap().toString()); // 内容多会自动分行
     final e = _entryOf(wallets, widget.walletId);
     final String? address = e?.addressBase58; // 可空
 
-        // 打开地址页
-   
+    // 打开地址页
+
     return Scaffold(
       appBar: AppBar(
-        title: GestureDetector(onTap: _handleSecretTap, child: const Text('钱包详情')),
+        title:
+            GestureDetector(onTap: _handleSecretTap, child: const Text('钱包详情')),
         actions: [
-          
-if (_showDeleteBtn) IconButton(
-  icon: const Icon(Icons.delete_outline),
-  color: Colors.red,
-  tooltip: '删除此钱包',
-  onPressed: _confirmAndDelete,
-),
+          if (_showDeleteBtn)
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              color: Colors.red,
+              tooltip: '删除此钱包',
+              onPressed: _confirmAndDelete,
+            ),
 
           // if (address != null && address.isNotEmpty)
           // TronActivityPanel.explorerAction(address),
-        
-           IconButton(
-      tooltip: '在区块浏览器打开',
-      icon: const Icon(Icons.open_in_new),
-      onPressed: () {
-         final url = ExplorerSheet.tronscanUrl(
-              origin: 'https://tronscan.org/#', // 可改你喜欢的浏览器域名
-              path: 'address/$address',
-            );
-             ExplorerSheet.show(context, url: url);
-         },),
+
+          IconButton(
+            tooltip: '在区块浏览器打开',
+            icon: const Icon(Icons.open_in_new),
+            onPressed: () {
+              final url = ExplorerSheet.tronscanUrl(
+                origin: 'https://tronscan.org/#', // 可改你喜欢的浏览器域名
+                path: 'address/$address',
+              );
+              ExplorerSheet.show(context, url: url);
+            },
+          ),
           IconButton(
             tooltip: '二维码',
             icon: const Icon(Icons.qr_code_2),
@@ -239,11 +254,11 @@ if (_showDeleteBtn) IconButton(
             tooltip: '刷新余额',
             icon: _loading
                 ? const SizedBox(
-                    width: 18, 
-                    height: 18, 
+                    width: 18,
+                    height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.refresh),
-                   onPressed: _loading
+            onPressed: _loading
                 ? null
                 : () async {
                     final e = _entryOf(wallets, widget.walletId);
@@ -252,7 +267,6 @@ if (_showDeleteBtn) IconButton(
                       // Also refresh TRON resources
                       await (_resKey.currentState?.refresh() ?? Future.value());
                     }
-               
                   },
           ),
           IconButton(
@@ -275,7 +289,8 @@ if (_showDeleteBtn) IconButton(
 
           final defaultId = settings.get('default_wallet_id') as String?;
           final isDefault = (e.isDefault ?? false) || (defaultId == e.id);
-          final name = (e.name?.trim().isNotEmpty ?? false) ? e.name!.trim() : null;
+          final name =
+              (e.name?.trim().isNotEmpty ?? false) ? e.name!.trim() : null;
 
           return ListView(
             padding: const EdgeInsets.all(12),
@@ -293,7 +308,8 @@ if (_showDeleteBtn) IconButton(
                     // 标题行（名称/星标/设为默认）
                     Row(
                       children: [
-                        if (isDefault) const Icon(Icons.star, color: Colors.amber),
+                        if (isDefault)
+                          const Icon(Icons.star, color: Colors.amber),
                         if (isDefault) const SizedBox(width: 6),
                         Expanded(
                           child: Text(
@@ -325,8 +341,8 @@ if (_showDeleteBtn) IconButton(
                         Expanded(
                           child: SelectableText(
                             e.addressBase58,
-                            style:
-                                TextStyle(fontFamily: 'monospace', color: tileFg),
+                            style: TextStyle(
+                                fontFamily: 'monospace', color: tileFg),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -353,7 +369,9 @@ if (_showDeleteBtn) IconButton(
                     const SizedBox(height: 8),
                     Text(
                       '创建于：${e.createdAt.toLocal().toString().split('.').first}',
-                      style: const TextStyle(fontSize: 12, color: Color.fromARGB(137, 230, 230, 230)),
+                      style: const TextStyle(
+                          fontSize: 12,
+                          color: Color.fromARGB(137, 230, 230, 230)),
                     ),
                     const SizedBox(height: 8),
                     // 二维码快速入口（卡片内也给一个按钮，和 AppBar 的图标互补）
@@ -382,8 +400,8 @@ if (_showDeleteBtn) IconButton(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('余额',
-                        style:
-                            TextStyle(fontWeight: FontWeight.w600, color: tileFg)),
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, color: tileFg)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -394,8 +412,8 @@ if (_showDeleteBtn) IconButton(
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child:
-                              _metricTile('TRX', _trx ?? '--', Icons.token, fg: tileFg),
+                          child: _metricTile('TRX', _trx ?? '--', Icons.token,
+                              fg: tileFg),
                         ),
                       ],
                     ),
@@ -408,7 +426,8 @@ if (_showDeleteBtn) IconButton(
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2))
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2))
                             : const Icon(Icons.refresh),
                         label: const Text('刷新余额'),
                       ),
@@ -417,16 +436,16 @@ if (_showDeleteBtn) IconButton(
                 ),
               ),
 
-const SizedBox(height: 8),
+              const SizedBox(height: 8),
 
 // 👉 新增：TRON 资源面板（能量/带宽）
 // TronResourcesPanel(addressBase58: e.addressBase58),
-TronResourcesPanel(
-  key: _resKey,
-  addressBase58: e.addressBase58,
-  dense: true,       // 紧凑
-  showTip: false,    // 如需底部说明可设 true
-),
+              TronResourcesPanel(
+                key: _resKey,
+                addressBase58: e.addressBase58,
+                dense: true, // 紧凑
+                showTip: false, // 如需底部说明可设 true
+              ),
               const SizedBox(height: 12),
 
               // ===== 快捷操作卡 =====
@@ -440,8 +459,8 @@ TronResourcesPanel(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('快捷操作',
-                        style:
-                            TextStyle(fontWeight: FontWeight.w600, color: tileFg)),
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, color: tileFg)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -478,22 +497,20 @@ TronResourcesPanel(
                         ),
                       ],
                     ),
-const SizedBox(height: 8),
-SizedBox(
-  width: double.infinity,
-  child: FilledButton.icon(
-    icon: const Icon(Icons.bolt),
-    label: const Text('购买能量'),
-    onPressed: () => Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => EnergyPurchasePage(walletId: e.id),
-      ),
-    ),
-  ),
-),
-
-
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        icon: const Icon(Icons.bolt),
+                        label: const Text('购买能量'),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => EnergyPurchasePage(walletId: e.id),
+                          ),
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -517,16 +534,11 @@ SizedBox(
                   ],
                 ),
               ),
-      
-        
-        
-
             ],
           );
         },
       ),
-    
-);
+    );
   }
 
   // =============== 逻辑 ===============
@@ -537,9 +549,8 @@ SizedBox(
   }
 
   UsdtService _svc() {
-    final ep =
-        (Hive.box('settings').get('tron_endpoint') as String?) ??
-            'https://api.trongrid.io';
+    final ep = (Hive.box('settings').get('tron_endpoint') as String?) ??
+        'https://api.trongrid.io';
     return UsdtService(TronClient(endpoint: ep));
   }
 
@@ -605,7 +616,8 @@ SizedBox(
           onSubmitted: (v) => Navigator.pop(context, v.trim()),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: const Text('取消')),
           FilledButton(
             onPressed: () => Navigator.pop(context, ctl.text.trim()),
             child: const Text('确定'),
@@ -629,8 +641,9 @@ SizedBox(
       ),
       builder: (ctx) {
         final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        final fg = isDark ? Colors.white : const Color.fromARGB(221, 138, 138, 138);
-          final fg2 = isDark ? Colors.white : Colors.black87;
+        final fg =
+            isDark ? Colors.white : const Color.fromARGB(221, 138, 138, 138);
+        final fg2 = isDark ? Colors.white : Colors.black87;
         return Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           child: Column(
@@ -642,7 +655,9 @@ SizedBox(
                   const SizedBox(width: 8),
                   const Text('收款二维码'),
                   const Spacer(),
-                  IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close)),
+                  IconButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: const Icon(Icons.close)),
                 ],
               ),
               const SizedBox(height: 8),
@@ -650,7 +665,7 @@ SizedBox(
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color:  Colors.white,
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: QrImageView(
@@ -673,8 +688,8 @@ SizedBox(
                     child: OutlinedButton.icon(
                       onPressed: () {
                         Clipboard.setData(ClipboardData(text: e.addressBase58));
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(const SnackBar(content: Text('已复制地址')));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('已复制地址')));
                       },
                       icon: const Icon(Icons.copy),
                       label: const Text('复制地址'),

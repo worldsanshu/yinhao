@@ -33,8 +33,8 @@ String normalizeTronForDisplay(String input) {
     s = s.substring(2); // 去掉前缀，后面按 hex 尝试解析
   }
 
-  if (s.startsWith('T')) return s;                 // 已是 Base58
-  if (s.startsWith('41') || s.startsWith('0x41'))  // Hex -> Base58
+  if (s.startsWith('T')) return s; // 已是 Base58
+  if (s.startsWith('41') || s.startsWith('0x41')) // Hex -> Base58
     return tronHexToBase58(s);
 
   throw ArgumentError('无法识别的地址格式: $input');

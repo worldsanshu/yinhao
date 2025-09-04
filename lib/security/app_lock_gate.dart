@@ -23,7 +23,8 @@ class AppLockGate extends StatelessWidget {
       future: _decide(),
       builder: (context, snap) {
         if (!snap.hasData) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+              body: Center(child: CircularProgressIndicator()));
         }
         final data = snap.data!;
         final onboarded = data['onboarded'] ?? false;

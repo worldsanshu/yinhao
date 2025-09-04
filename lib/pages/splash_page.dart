@@ -21,16 +21,18 @@ class _SplashPageState extends State<SplashPage> {
 
   Future<void> _boot() async {
     await Hive.initFlutter();
-  await Hive.openBox('wallets');
-  await Hive.openBox('settings');
-   
+    await Hive.openBox('wallets');
+    await Hive.openBox('settings');
+
     final (pinHash, _) = await SecureStore.readPinHashAndSalt();
     await Future.delayed(const Duration(milliseconds: 300));
     if (!mounted) return;
     if (pinHash == null) {
-      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const OnboardingPage()));
+      Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const OnboardingPage()));
     } else {
-      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const PinLockPage()));
+      Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const PinLockPage()));
     }
   }
 

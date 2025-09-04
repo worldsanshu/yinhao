@@ -37,11 +37,19 @@ class TransferPage extends StatefulWidget {
 }
 
 class _TransferPageState extends State<TransferPage> {
+  void _showError(Object e) {
+    final msg = e is Exception
+        ? e.toString().replaceFirst('Exception: ', '')
+        : e.toString();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
   final _addrCtl = TextEditingController();
-  final _amtCtl  = TextEditingController();
-  final _p1Ctl   = TextEditingController();
-  final _p2Ctl   = TextEditingController();
-  final _p3Ctl   = TextEditingController();
+  final _amtCtl = TextEditingController();
+  final _p1Ctl = TextEditingController();
+  final _p2Ctl = TextEditingController();
+  final _p3Ctl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
   late final AssetType _asset; // 初始资产
@@ -59,8 +67,9 @@ class _TransferPageState extends State<TransferPage> {
     // 读取设置中的固定收款地址与能量购买金额
     try {
       final s = Hive.box('settings');
-      _energyTo = (s.get('energy_purchase_to') as String?) ?? (s.get('trx_default_to') as String?);
-      final amt = s.get('energy_purchase_trx');
+      _energyTo = (s.get('energy_purchase_to') as String?) ??
+          (s.get('trx_default_to') as String?);
+      final amt = s.get('energy_purchase_to_number');
       if (amt != null) _energyTrx = amt.toString();
     } catch (_) {}
     _asset = widget.initialAsset;
@@ -161,8 +170,12 @@ class _TransferPageState extends State<TransferPage> {
           title: const Text('需要相机权限'),
           content: const Text('请在系统设置中开启相机权限后再试。'),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('前往设置')),
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('取消')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('前往设置')),
           ],
         ),
       );
@@ -180,109 +193,124 @@ class _TransferPageState extends State<TransferPage> {
   // ---------------- 二次确认 → 最终确认 → 提交 ----------------
 
   Future<void> _onNext() async {
-  if (_submitting) return;
-  if (!_formKey.currentState!.validate()) return;
+    if (_submitting) return;
+    if (!_formKey.currentState!.validate()) return;
 
-  setState(() => _submitting = true);
-  try {
-    final normalized = _extractTronAddress(_addrCtl.text) ?? _addrCtl.text.trim();
-    final amount = _amtCtl.text.trim();
-    final assetText = _asset == AssetType.usdt ? 'USDT' : 'TRX';
+    setState(() => _submitting = true);
+    try {
+      final normalized =
+          _extractTronAddress(_addrCtl.text) ?? _addrCtl.text.trim();
+      final amount = _amtCtl.text.trim();
+      final assetText = _asset == AssetType.usdt ? 'USDT' : 'TRX';
 
-    // 先校验三口令（不返回私钥，仅验证正确性）
-    final passOk = await CryptoService.verifyPasswords(
-      _entry!, _p1Ctl.text, _p2Ctl.text, _p3Ctl.text,
-    );
-    if (!passOk) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('三组口令不正确')));
-      return;
-    }
+      // 先校验三口令（不返回私钥，仅验证正确性）
+      final passOk = await CryptoService.verifyPasswords(
+        _entry!,
+        _p1Ctl.text,
+        _p2Ctl.text,
+        _p3Ctl.text,
+      );
+      if (!passOk) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('三组口令不正确')));
+        return;
+      }
 
-    // 一级确认：底部面板勾选复核项
-    final ok1 = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        bool c1 = false, c2 = false;
-        return StatefulBuilder(
-          builder: (ctx, setS) => Padding(
-            padding: EdgeInsets.only(
-              left: 16, right: 16, top: 16,
-              bottom: 16 + MediaQuery.of(ctx).viewInsets.bottom,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.verified_user, size: 20),
-                    const SizedBox(width: 8),
-                    Text('请再次确认转账信息', style: Theme.of(ctx).textTheme.titleMedium),
-                    const Spacer(),
-                    IconButton(onPressed: () => Navigator.pop(ctx, false), icon: const Icon(Icons.close)),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                _confirmRow('资产', assetText),
-                _confirmRow('金额', amount),
-                _confirmRow('收款地址', normalized, mono: true),
-                const SizedBox(height: 8),
-                CheckboxListTile(
-                  value: c1,
-                  onChanged: (v) => setS(() => c1 = v ?? false),
-                  title: const Text('我已核对收款地址（前后6位）无误'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-                CheckboxListTile(
-                  value: c2,
-                  onChanged: (v) => setS(() => c2 = v ?? false),
-                  title: const Text('我确认这是我本人发起的转账'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-                const SizedBox(height: 6),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: c1 && c2 ? () => Navigator.pop(ctx, true) : null,
-                    child: const Text('继续'),
+      // 一级确认：底部面板勾选复核项
+      final ok1 = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (ctx) {
+          bool c1 = false, c2 = false;
+          return StatefulBuilder(
+            builder: (ctx, setS) => Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: 16 + MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.verified_user, size: 20),
+                      const SizedBox(width: 8),
+                      Text('请再次确认转账信息',
+                          style: Theme.of(ctx).textTheme.titleMedium),
+                      const Spacer(),
+                      IconButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          icon: const Icon(Icons.close)),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 8),
-              ],
+                  const SizedBox(height: 8),
+                  _confirmRow('资产', assetText),
+                  _confirmRow('金额', amount),
+                  _confirmRow('收款地址', normalized, mono: true),
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    value: c1,
+                    onChanged: (v) => setS(() => c1 = v ?? false),
+                    title: const Text('我已核对收款地址（前后6位）无误'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  CheckboxListTile(
+                    value: c2,
+                    onChanged: (v) => setS(() => c2 = v ?? false),
+                    title: const Text('我确认这是我本人发起的转账'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed:
+                          c1 && c2 ? () => Navigator.pop(ctx, true) : null,
+                      child: const Text('继续'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
             ),
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
 
-    if (ok1 != true) return;
+      if (ok1 != true) return;
 
-    // 二级最终确认对话框
-    final ok2 = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('最终确认'),
-        content: Text('将向以下地址转账 $amount $assetText：\n$normalized'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('确认并发送')),
-        ],
-      ),
-    );
+      // 二级最终确认对话框
+      final ok2 = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('最终确认'),
+          content: Text('将向以下地址转账 $amount $assetText：\n$normalized'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('取消')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('确认并发送')),
+          ],
+        ),
+      );
 
-    if (ok2 == true) {
-      await _submit(normalized, amount);
+      if (ok2 == true) {
+        await _submit(normalized, amount);
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
     }
-  } finally {
-    if (mounted) setState(() => _submitting = false);
   }
-}
 
   Widget _confirmRow(String k, String v, {bool mono = false}) {
     return Padding(
@@ -305,72 +333,109 @@ class _TransferPageState extends State<TransferPage> {
 
   // ---------------- 提交（接你的实际链上逻辑） ----------------
 
- Future<void> _submit(String toAddr, String amount) async {
-  setState(() => _submitting = true);
-  try {
-    final entry = _entry!;
-    final p1 = _p1Ctl.text.trim(), p2 = _p2Ctl.text.trim(), p3 = _p3Ctl.text.trim();
+  Future<void> _submit(String toAddr, String amount) async {
+    setState(() => _submitting = true);
+    try {
+      final entry = _entry!;
+      final p1 = _p1Ctl.text.trim(),
+          p2 = _p2Ctl.text.trim(),
+          p3 = _p3Ctl.text.trim();
 
-    // 1) 口令解密出 32 字节私钥（crypto_service.dart 里已做强校验）
-    final pk = await CryptoService.decryptPrivateKeyWithThreePasswords(entry, p1, p2, p3);
+      // 1) 口令解密出 32 字节私钥（crypto_service.dart 里已做强校验）
+      final pk = await CryptoService.decryptPrivateKeyWithThreePasswords(
+          entry, p1, p2, p3);
 
-    // 2) 构造发送器（TronGrid；如用自建节点，改 nodeUrl 即可）
-    final tron = TransferService(
-      nodeUrl: 'https://api.trongrid.io',
-      tronProApiKey: null, // 若有 TronGrid Key 可填在这里
-    );
-
-    // 3) 解析金额为 6 位小数的整数（TRX=Sun、USDT=最小单位）
-    BigInt _to6(String s) {
-      final t = s.trim();
-      if (t.isEmpty) return BigInt.zero;
-      final parts = t.split('.');
-      final whole = BigInt.parse(parts[0].isEmpty ? '0' : parts[0]);
-      var frac = parts.length > 1 ? parts[1] : '0';
-      if (frac.length > 6) frac = frac.substring(0, 6);
-      final fracInt = BigInt.parse(frac.padRight(6, '0'));
-      return whole * BigInt.from(1000000) + fracInt;
-    }
-
-    // 4) 真实广播
-    late final String txId;
-    if (_asset == AssetType.usdt) {
-      // 主网 USDT（请再次核对）
-      const usdtContract = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
-      txId = await tron.sendUsdt(
-        fromBase58: entry.addressBase58,
-        toBase58: toAddr,
-        usdt6: _to6(amount),
-        privateKey: pk,
-        contractBase58: usdtContract,
+      // 2) 构造发送器（TronGrid；如用自建节点，改 nodeUrl 即可）
+      final tron = TransferService(
+        nodeUrl: 'https://api.trongrid.io',
+        tronProApiKey: null, // 若有 TronGrid Key 可填在这里
       );
-    } else {
-      txId = await tron.sendTrx(
-        fromBase58: entry.addressBase58,
-        toBase58: toAddr,
-        sunAmount: _to6(amount),
-        privateKey: pk,
-      );
-    }
 
-    if (!mounted) return;
-    // 成功：回传真实 txID
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('已提交：$txId')),
-    );
-    Navigator.pop(context, true);
-  } catch (e) {
-    if (mounted) {
-      // 友好化错误提示（口令错误 / 能量不足 / 节点报错等）
-      final msg = e.toString().contains('口令') ? '三组口令不正确' : e.toString();
+      // 3) 解析金额为 6 位小数的整数（TRX=Sun、USDT=最小单位）
+      BigInt _to6(String s) {
+        final t = s.trim();
+        if (t.isEmpty) return BigInt.zero;
+        final parts = t.split('.');
+        final whole = BigInt.parse(parts[0].isEmpty ? '0' : parts[0]);
+        var frac = parts.length > 1 ? parts[1] : '0';
+        if (frac.length > 6) frac = frac.substring(0, 6);
+        final fracInt = BigInt.parse(frac.padRight(6, '0'));
+        return whole * BigInt.from(1000000) + fracInt;
+      }
+
+      // 4) 真实广播
+      late final String txId;
+      if (_asset == AssetType.usdt) {
+        if (_asset == AssetType.usdt &&
+            _withEnergy &&
+            _energyTo != null &&
+            _energyTrx != null) {
+          // 1) 先转一笔 TRX 用于能量购买
+          await tron.sendTrx(
+            fromBase58: entry.addressBase58,
+            toBase58: _energyTo!,
+            sunAmount: _to6(_energyTrx!), // 这里 _to6 同样是 *1e6
+            privateKey: pk,
+          );
+          // 2) 等 5 秒（平台入账开单）
+          await Future.delayed(const Duration(seconds: 5));
+        }
+
+        // 主网 USDT（请再次核对）
+        const usdtContract = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
+        final dry = await tron.dryRunUsdtTransfer(
+          fromBase58: entry.addressBase58,
+          toBase58: toAddr,
+          usdt6: _to6(amount),
+          contractBase58: usdtContract,
+        );
+
+        // 这里做一下直观报错透传
+        final ok =
+            (dry['result'] is Map) ? (dry['result']['result'] == true) : true;
+        if (!ok) {
+          throw Exception('预检失败：${dry['result']?['message'] ?? dry}');
+        }
+
+        // 也可以提示 energy 预估（若有）
+        final used = dry['energy_used'];
+        if (used is int && used > 0) {
+          // 可在 UI toasts 显示下：预计能量 used
+        }
+        txId = await tron.sendUsdt(
+          fromBase58: entry.addressBase58,
+          toBase58: toAddr,
+          usdt6: _to6(amount),
+          privateKey: pk,
+          contractBase58: usdtContract,
+        );
+      } else {
+        txId = await tron.sendTrx(
+          fromBase58: entry.addressBase58,
+          toBase58: toAddr,
+          sunAmount: _to6(amount),
+          privateKey: pk,
+        );
+      }
+
+      if (!mounted) return;
+      // 成功：回传真实 txID
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('转账失败：$msg')),
+        SnackBar(content: Text('已提交：$txId')),
       );
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        // 友好化错误提示（口令错误 / 能量不足 / 节点报错等）
+        final msg = e.toString().contains('口令') ? '三组口令不正确' : e.toString();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('转账失败：$msg')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
     }
-  } finally {
-    if (mounted) setState(() => _submitting = false);
   }
-}
 
   // ---------------- UI ----------------
 
@@ -379,8 +444,9 @@ class _TransferPageState extends State<TransferPage> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     // 与其它页同步的小卡底色/前景
-    final tileBg = isDark ? Colors.white.withOpacity(0.08)
-                          : Colors.white.withOpacity(0.90);
+    final tileBg = isDark
+        ? Colors.white.withOpacity(0.08)
+        : Colors.white.withOpacity(0.90);
     final tileFg = isDark ? Colors.white : Colors.black87;
 
     final assetText = _asset == AssetType.usdt ? 'USDT' : 'TRX';
@@ -401,17 +467,21 @@ class _TransferPageState extends State<TransferPage> {
               Padding(
                 padding: const EdgeInsets.only(left: 4, bottom: 6),
                 child: Text('当前钱包：$walletName',
-                    style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                    style:
+                        const TextStyle(fontSize: 12, color: Colors.black54)),
               ),
 
             // 1) 收款地址（多行 + 粘贴 + 扫码）
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: tileBg, borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(
+                  color: tileBg, borderRadius: BorderRadius.circular(12)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('收款地址', style: TextStyle(fontWeight: FontWeight.w600, color: tileFg)),
+                  Text('收款地址',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600, color: tileFg)),
                   const SizedBox(height: 8),
                   Row(
                     children: [
@@ -423,7 +493,8 @@ class _TransferPageState extends State<TransferPage> {
                           minLines: 2,
                           maxLines: 4, // 多行显示，方便反复核对
                           keyboardType: TextInputType.multiline,
-                          decoration: _filledInput('粘贴或扫描 Tron 地址（以 T 开头，可包含换行/前缀）', tileBg),
+                          decoration: _filledInput(
+                              '粘贴或扫描 Tron 地址（以 T 开头，可包含换行/前缀）', tileBg),
                           onChanged: (_) => setState(() {}),
                         ),
                       ),
@@ -433,7 +504,8 @@ class _TransferPageState extends State<TransferPage> {
                           IconButton(
                             tooltip: '粘贴',
                             onPressed: () async {
-                              final data = await Clipboard.getData(Clipboard.kTextPlain);
+                              final data =
+                                  await Clipboard.getData(Clipboard.kTextPlain);
                               final t = data?.text ?? '';
                               if (t.isNotEmpty) {
                                 _addrCtl.text = t;
@@ -446,11 +518,11 @@ class _TransferPageState extends State<TransferPage> {
                             tooltip: '扫码识别',
                             // onPressed: _openScanner,
                             icon: Icon(Icons.qr_code_scanner, color: tileFg),
-                              onPressed: () async {
+                            onPressed: () async {
                               final raw = await showQrScannerSheet(context);
                               if (raw == null || raw.isEmpty) return;
                               final addr = extractTronBase58(raw) ?? raw;
-                             _addrCtl.text = addr;
+                              _addrCtl.text = addr;
                               setState(() {});
                             },
                           ),
@@ -464,9 +536,47 @@ class _TransferPageState extends State<TransferPage> {
                     final normalized = _extractTronAddress(_addrCtl.text);
                     return Text(
                       normalized == null ? '未识别到有效地址' : '识别为：$normalized',
-                      style: TextStyle(fontSize: 12, color: normalized == null ? Colors.red : Colors.black54),
+                      style: TextStyle(
+                          fontSize: 12,
+                          color:
+                              normalized == null ? Colors.red : const Color.fromARGB(137, 148, 148, 148)),
                     );
                   }),
+                  const SizedBox(height: 12),
+                  if (_asset == AssetType.usdt) ...[
+                    Divider(height: 20, color: tileFg.withOpacity(0.12)),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '是否先购买能量（仅 USDT 时显示）',
+                            style: TextStyle(color: tileFg, fontSize: 14),
+                          ),
+                        ),
+                        Switch(
+                          value: _withEnergy,
+                          onChanged: (v) => setState(() => _withEnergy = v),
+                        ),
+                      ],
+                    ),
+                    if (_withEnergy) ...[
+                      const SizedBox(height: 8),
+                      Text('能量购买地址（可在设置中配置）',
+                          style: TextStyle(
+                              fontSize: 12, color: tileFg.withOpacity(0.8))),
+                      const SizedBox(height: 4),
+                      Text(_energyTo?.isNotEmpty == true ? _energyTo! : '未配置',
+                          style: TextStyle(color: tileFg)),
+                      const SizedBox(height: 6),
+                      Text('能量购买TRX金额',
+                          style: TextStyle(
+                              fontSize: 12, color: tileFg.withOpacity(0.8))),
+                      const SizedBox(height: 4),
+                      Text(_energyTrx?.isNotEmpty == true ? _energyTrx! : '未配置',
+                          style: TextStyle(color: tileFg)),
+                    ],
+                    Divider(height: 16, color: tileFg.withOpacity(0.12)),
+                  ],
                 ],
               ),
             ),
@@ -476,21 +586,26 @@ class _TransferPageState extends State<TransferPage> {
             // 2) 金额
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: tileBg, borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(
+                  color: tileBg, borderRadius: BorderRadius.circular(12)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('金额（$assetText）', style: TextStyle(fontWeight: FontWeight.w600, color: tileFg)),
+                  Text('金额（$assetText）',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600, color: tileFg)),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _amtCtl,
                     validator: _validateAmount,
                     autovalidateMode: AutovalidateMode.onUserInteraction,
                     decoration: _filledInput('请输入转账金额', tileBg),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     inputFormatters: [
                       // USDT/TRX 常见精度：保留 6 位
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,6}')),
+                      FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d*\.?\d{0,6}')),
                     ],
                     textInputAction: TextInputAction.next,
                     onChanged: (_) => setState(() {}),
@@ -504,12 +619,14 @@ class _TransferPageState extends State<TransferPage> {
             // 3) 三个密码（必须全部输入）
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: tileBg, borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(
+                  color: tileBg, borderRadius: BorderRadius.circular(12)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('输入三个密码（与创建钱包时一致）',
-                      style: TextStyle(fontWeight: FontWeight.w600, color: tileFg)),
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600, color: tileFg)),
                   const SizedBox(height: 8),
 
                   // 密码1
@@ -521,7 +638,8 @@ class _TransferPageState extends State<TransferPage> {
                     decoration: _filledInput('密码1', tileBg).copyWith(
                       suffixIcon: IconButton(
                         onPressed: () => setState(() => _hideP1 = !_hideP1),
-                        icon: Icon(_hideP1 ? Icons.visibility_off : Icons.visibility),
+                        icon: Icon(
+                            _hideP1 ? Icons.visibility_off : Icons.visibility),
                       ),
                     ),
                     onChanged: (_) => setState(() {}),
@@ -530,7 +648,8 @@ class _TransferPageState extends State<TransferPage> {
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text('提示：${_entry!.hint1!}',
-                          style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.black54)),
                     ),
 
                   const SizedBox(height: 10),
@@ -544,7 +663,8 @@ class _TransferPageState extends State<TransferPage> {
                     decoration: _filledInput('密码2', tileBg).copyWith(
                       suffixIcon: IconButton(
                         onPressed: () => setState(() => _hideP2 = !_hideP2),
-                        icon: Icon(_hideP2 ? Icons.visibility_off : Icons.visibility),
+                        icon: Icon(
+                            _hideP2 ? Icons.visibility_off : Icons.visibility),
                       ),
                     ),
                     onChanged: (_) => setState(() {}),
@@ -553,7 +673,8 @@ class _TransferPageState extends State<TransferPage> {
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text('提示：${_entry!.hint2!}',
-                          style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.black54)),
                     ),
 
                   const SizedBox(height: 10),
@@ -567,7 +688,8 @@ class _TransferPageState extends State<TransferPage> {
                     decoration: _filledInput('密码3', tileBg).copyWith(
                       suffixIcon: IconButton(
                         onPressed: () => setState(() => _hideP3 = !_hideP3),
-                        icon: Icon(_hideP3 ? Icons.visibility_off : Icons.visibility),
+                        icon: Icon(
+                            _hideP3 ? Icons.visibility_off : Icons.visibility),
                       ),
                     ),
                     onChanged: (_) => setState(() {}),
@@ -576,7 +698,8 @@ class _TransferPageState extends State<TransferPage> {
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text('提示：${_entry!.hint3!}',
-                          style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.black54)),
                     ),
                 ],
               ),
@@ -588,7 +711,8 @@ class _TransferPageState extends State<TransferPage> {
             FilledButton.icon(
               onPressed: (_canProceed && !_submitting) ? _onNext : null,
               icon: _submitting
-                  ? SizedBox( // ← 去掉 const，避免 const+非常量子树
+                  ? SizedBox(
+                      // ← 去掉 const，避免 const+非常量子树
                       width: 18, height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
@@ -596,7 +720,8 @@ class _TransferPageState extends State<TransferPage> {
               label: const Text('下一步'),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
             ),
 
@@ -661,14 +786,17 @@ class _ScannerSheetState extends State<_ScannerSheet> {
             errorBuilder: (ctx, error, child) {
               return _ScanError(
                 message: error.errorDetails?.message ?? error.toString(),
-                onOpenSettings: () => openAppSettings(), // 来自 permission_handler
+                onOpenSettings: () =>
+                    openAppSettings(), // 来自 permission_handler
               );
             },
           ),
 
           // 顶部工具条
           Positioned(
-            left: 8, right: 8, top: 8,
+            left: 8,
+            right: 8,
+            top: 8,
             child: Row(
               children: [
                 IconButton(
@@ -696,9 +824,11 @@ class _ScannerSheetState extends State<_ScannerSheet> {
           IgnorePointer(
             child: Center(
               child: Container(
-                width: 260, height: 260,
+                width: 260,
+                height: 260,
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.white.withOpacity(0.85), width: 2),
+                  border: Border.all(
+                      color: Colors.white.withOpacity(0.85), width: 2),
                   borderRadius: BorderRadius.circular(16),
                 ),
               ),
@@ -724,7 +854,8 @@ class _ScanError extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.no_photography, color: Colors.white, size: 64), // <- 换成通用图标
+          const Icon(Icons.no_photography,
+              color: Colors.white, size: 64), // <- 换成通用图标
           const SizedBox(height: 12),
           Text(
             message,

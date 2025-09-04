@@ -21,7 +21,11 @@ class _AppLockSetupPageState extends State<AppLockSetupPage> {
   void initState() {
     super.initState();
     AppLockService.canUseBiometrics().then((ok) {
-      if (mounted) setState(() { _bioSupported = ok; _bioOn = ok; });
+      if (mounted)
+        setState(() {
+          _bioSupported = ok;
+          _bioOn = ok;
+        });
     }).catchError((_) {});
   }
 
@@ -45,7 +49,8 @@ class _AppLockSetupPageState extends State<AppLockSetupPage> {
                   keyboardType: TextInputType.number,
                   obscureText: true,
                   maxLength: 6,
-                  decoration: const InputDecoration(labelText: '输入密码（建议 6 位数字）'),
+                  decoration:
+                      const InputDecoration(labelText: '输入密码（建议 6 位数字）'),
                 ),
                 const SizedBox(height: 8),
                 TextField(
@@ -66,7 +71,10 @@ class _AppLockSetupPageState extends State<AppLockSetupPage> {
                 const SizedBox(height: 20),
                 ElevatedButton.icon(
                   icon: _busy
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.lock),
                   label: const Text('设置为应用密码并继续'),
                   onPressed: () async {
@@ -182,8 +190,11 @@ class _AppLockUnlockPageState extends State<AppLockUnlockPage> {
             const SizedBox(height: 12),
             ElevatedButton.icon(
               icon: _busy
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.lock_open),
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.lock_open),
               label: const Text('解锁'),
               onPressed: _busy ? null : _unlock,
             ),

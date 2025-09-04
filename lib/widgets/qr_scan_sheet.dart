@@ -54,11 +54,14 @@ class _QrScanSheetState extends State<_QrScanSheet> {
             Row(
               children: [
                 const SizedBox(width: 8),
-                const Text('扫一扫', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                const Text('扫一扫',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
                 const Spacer(),
                 IconButton(
                   tooltip: _torch ? '关闭手电' : '打开手电',
-                  icon: Icon(_torch ? Icons.flashlight_off : Icons.flashlight_on),
+                  icon:
+                      Icon(_torch ? Icons.flashlight_off : Icons.flashlight_on),
                   onPressed: () async {
                     _torch = !_torch;
                     await _controller.toggleTorch();
@@ -99,7 +102,9 @@ class _QrScanSheetState extends State<_QrScanSheet> {
                     IgnorePointer(
                       child: Container(
                         decoration: BoxDecoration(
-                          border: Border.all(color: theme.colorScheme.primary.withOpacity(0.7), width: 2),
+                          border: Border.all(
+                              color: theme.colorScheme.primary.withOpacity(0.7),
+                              width: 2),
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),

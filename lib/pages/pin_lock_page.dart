@@ -1,4 +1,3 @@
-
 // lib/pages/pin_lock_page.dart
 import 'dart:convert';
 import 'dart:io';
@@ -37,7 +36,8 @@ class _PinLockPageState extends State<PinLockPage> {
     try {
       final supported = await _auth.isDeviceSupported();
       final canCheck = await _auth.canCheckBiometrics;
-      final types = supported ? await _auth.getAvailableBiometrics() : <BiometricType>[];
+      final types =
+          supported ? await _auth.getAvailableBiometrics() : <BiometricType>[];
       if (!mounted) return;
       setState(() {
         _biometricTypes = types;
@@ -59,10 +59,10 @@ class _PinLockPageState extends State<PinLockPage> {
         localizedReason: Platform.isIOS
             ? '使用 Face ID / Touch ID 解锁'
             : (_biometricTypes.contains(BiometricType.fingerprint)
-                  ? '使用指纹解锁'
-                  : '使用面部解锁'),
+                ? '使用指纹解锁'
+                : '使用面部解锁'),
         options: const AuthenticationOptions(
-          biometricOnly: true,        // 仅生物识别。如果想允许系统口令回退，把这行改为 false
+          biometricOnly: true, // 仅生物识别。如果想允许系统口令回退，把这行改为 false
           stickyAuth: true,
           useErrorDialogs: true,
           sensitiveTransaction: true,
@@ -156,7 +156,9 @@ class _PinLockPageState extends State<PinLockPage> {
 
   @override
   void dispose() {
-    try { _auth.stopAuthentication(); } catch (_) {}
+    try {
+      _auth.stopAuthentication();
+    } catch (_) {}
     _pinCtrl.dispose();
     super.dispose();
   }
@@ -197,9 +199,10 @@ class _PinLockPageState extends State<PinLockPage> {
                   IconButton(
                     onPressed: _tryBiometric,
                     icon: Icon(
-                      _biometricTypes.contains(BiometricType.face) && !Platform.isIOS
-                        ? Icons.face
-                        : Icons.fingerprint,
+                      _biometricTypes.contains(BiometricType.face) &&
+                              !Platform.isIOS
+                          ? Icons.face
+                          : Icons.fingerprint,
                       size: 32,
                     ),
                     tooltip: Platform.isIOS ? 'Face ID / Touch ID' : '生物识别',
@@ -211,7 +214,10 @@ class _PinLockPageState extends State<PinLockPage> {
               _biometricAvailable
                   ? (Platform.isIOS
                       ? '支持：Face ID / Touch ID'
-                      : '支持：' + (_biometricTypes.contains(BiometricType.fingerprint) ? '指纹' : '人脸'))
+                      : '支持：' +
+                          (_biometricTypes.contains(BiometricType.fingerprint)
+                              ? '指纹'
+                              : '人脸'))
                   : '此设备不支持生物识别或未录入',
               style: text.bodySmall?.copyWith(color: Colors.grey[600]),
             ),
