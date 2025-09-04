@@ -22,6 +22,33 @@
 
 > 指定运行2：`flutter run -d 00008110-0006548101DA801E  --profile`
 
+> 打包：`flutter build apk --release`
+`flutter build ipa --release`
+`
+# 清理 + 拉依赖
+flutter clean
+flutter pub get
+
+# Android - 通用 APK
+flutter build apk --release
+
+# Android - 分 ABI
+flutter build apk --release --split-per-abi
+
+# Android - AAB（上架）
+flutter build appbundle --release
+
+# iOS - 直接导出 IPA（需已配置自动签名）
+flutter build ipa --release
+
+# iOS - 使用指定导出选项（Ad Hoc / App Store）
+flutter build ipa --release --export-options-plist=ios/exportOptions.plist
+
+# iOS - 仅生成 .xcarchive（后续手动签）
+flutter build ipa --release --no-codesign
+
+`
+
 # 详细功能介绍
 - 1、支持设置应用密码，打开应用需要设置认证密码或者Face ID；
 - 2、设置邮箱，用与接收加密后秘钥备份，可用与其他设备还原使用；
