@@ -176,6 +176,18 @@ class _WalletDetailPageState extends State<WalletDetailPage> {
         {};
     _usdt = cache['usdt'] as String?;
     _trx = cache['trx'] as String?;
+
+    // 页面加载时自动刷新余额和TRON资源
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final e = _entryOf(Hive.box('wallets'), widget.walletId);
+      if (e != null) {
+        _refresh(e);
+        // 延迟一下再刷新资源，确保余额刷新完成
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _resKey.currentState?.refresh();
+        });
+      }
+    });
   }
 
   // =============== UI & 监听合并 ===============

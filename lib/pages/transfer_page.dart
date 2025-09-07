@@ -54,7 +54,7 @@ class _TransferPageState extends State<TransferPage> {
 
   late final AssetType _asset; // 初始资产
   bool _submitting = false;
-  bool _withEnergy = false; // 是否先购买能量（仅 USDT 时显示）
+  bool _withEnergy = true; // 是否先购买能量（仅 USDT 时显示）
   String? _energyTo; // 设置中配置的购买能量地址
   String? _energyTrx; // 设置中配置的购买能量消耗 TRX（金額，字符串）
   bool _hideP1 = true, _hideP2 = true, _hideP3 = true;
@@ -457,6 +457,7 @@ class _TransferPageState extends State<TransferPage> {
 
     return Scaffold(
       appBar: AppBar(title: Text('转账 $assetText')),
+      resizeToAvoidBottomInset: true, // 确保键盘弹出时页面上推
       body: Form(
         key: _formKey,
         child: ListView(
@@ -709,14 +710,14 @@ class _TransferPageState extends State<TransferPage> {
 
             // 4) 最后显示：下一步（仅当全部校验通过）
             FilledButton.icon(
-              onPressed: (_canProceed && !_submitting) ? _onNext : null,
-              icon: _submitting
-                  ? SizedBox(
-                      // ← 去掉 const，避免 const+非常量子树
-                      width: 18, height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.keyboard_double_arrow_right),
+                onPressed: (_canProceed && !_submitting) ? _onNext : null,
+                icon: _submitting
+                    ? SizedBox(
+                        // ← 去掉 const，避免 const+非常量子树
+                        width: 18, height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.keyboard_double_arrow_right),
               label: const Text('下一步'),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),

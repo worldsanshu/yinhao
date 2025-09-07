@@ -271,13 +271,9 @@ class _WalletListPageState extends State<WalletListPage> {
                   color: Colors.black.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: const Text('钱包数',
-                    style: TextStyle(fontSize: 11, color: Colors.white70)),
+                child: Text('钱包数： $count',
+                    style: const TextStyle(fontSize: 11, color: Colors.white)),
               ),
-              const SizedBox(width: 6),
-              Text('$count',
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w600)),
               const Spacer(),
               IconButton(
                 tooltip: _hideBalances ? '显示金额' : '隐藏金额',
@@ -428,11 +424,13 @@ class _WalletListPageState extends State<WalletListPage> {
     ]);
   }
 
-  // 根据当前设置的网关创建服务（即时生效）
+  // 根据当前设置的网关和API Key创建服务（即时生效）
   UsdtService _svc() {
-    final ep = (Hive.box('settings').get('tron_endpoint') as String?) ??
-        'https://api.trongrid.io';
-    return UsdtService(TronClient(endpoint: ep));
+    final settings = Hive.box('settings');
+    final ep =
+        (settings.get('tron_endpoint') as String?) ?? 'https://api.trongrid.io';
+    final apiKey = settings.get('trongrid_api_key') as String?;
+    return UsdtService(TronClient(endpoint: ep, apiKey: apiKey));
   }
 
   Future<void> _refreshTotals(List<dynamic> keys) async {
@@ -543,10 +541,7 @@ class _WalletListPageState extends State<WalletListPage> {
   // ================== utils ==================
 
   String _fmt(double v) {
-    final s = v.toStringAsFixed(6);
-    return s.contains('.')
-        ? s.replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '')
-        : s;
+    return v.toStringAsFixed(2);
   }
 
   WalletEntry? _findById(String id) {

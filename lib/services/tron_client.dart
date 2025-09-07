@@ -7,7 +7,8 @@ import 'address_codec.dart';
 
 class TronClient {
   final String endpoint;
-  TronClient({this.endpoint = 'https://api.trongrid.io'});
+  final String? apiKey;
+  TronClient({this.endpoint = 'https://api.trongrid.io', this.apiKey});
 
   String normalizeToBase58(String input) {
     final s = input.trim();
@@ -26,7 +27,11 @@ class TronClient {
     try {
       final uri = Uri.parse(
           '$endpoint/v1/accounts/$base58/transactions/trc20?only_confirmed=true&limit=$limit');
-      final resp = await http.get(uri);
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+        if (apiKey != null) 'TRON-PRO-API-KEY': apiKey!,
+      };
+      final resp = await http.get(uri, headers: headers);
       if (resp.statusCode == 200) {
         final j = json.decode(resp.body) as Map<String, dynamic>;
         final data = (j['data'] as List? ?? []);
