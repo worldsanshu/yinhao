@@ -1,10 +1,10 @@
 
 
-# 银号USDT钱包说明
+# 银号有他USDT钱包说明
 本钱包完全开源，无条件使用，无需联网，完全私密~~~~
 做了一个官网：www.yinhao.me
 ## 开发初衷
-- 1、为赚的都是U，担心有一天有不测，对后事有个提前交代的而准备；
+- 1、赚的都是U，担心有一天有不测，对后事有个提前交代的而准备；
 - 2、需要有一个比较隐秘的方式，把钱包分享给你想分享的人；钱包创建需要设置3个密码，这个密码可能只有你自己或者和你挂念的人才知道，为了防止密码丢失，本钱包也做了及其友好的密码提示，高度提升了对非相关人的隐秘性;
 - 3、需要做一个放追踪隔离的钱包
 
@@ -26,28 +26,28 @@
 `flutter build ipa --release`
 `
 # 清理 + 拉依赖
-flutter clean
-flutter pub get
+`flutter clean`
+`flutter pub get`
 
 # Android - 通用 APK
-flutter build apk --release
+`flutter build apk --release`
 
 # Android - 分 ABI
-flutter build apk --release --split-per-abi
+`flutter build apk --release --split-per-abi`
 
 # Android - AAB（上架）
-flutter build appbundle --release
+`flutter build appbundle --release`
 
 # iOS - 直接导出 IPA（需已配置自动签名）
-flutter build ipa --release
+`flutter build ipa --release`
 
 # iOS - 使用指定导出选项（Ad Hoc / App Store）
-flutter build ipa --release --export-options-plist=ios/exportOptions.plist
+`flutter build ipa --release --export-options-plist=ios/exportOptions.plist`
 
 # iOS - 仅生成 .xcarchive（后续手动签）
-flutter build ipa --release --no-codesign
+`flutter build ipa --release --no-codesign`
 
-`
+
 
 # 详细功能介绍
 - 1、支持设置应用密码，打开应用需要设置认证密码或者Face ID；

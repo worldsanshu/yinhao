@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>银号</string>
+	<string>银号有他</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -26,12 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSFaceIDUsageDescription</key>
-	<string>我们需要使用 Face ID 来验证你的身份，以确保账户安全。</string>
 	<key>NSCameraUsageDescription</key>
 	<string>用于扫描二维码</string>
-
-
+	<key>NSFaceIDUsageDescription</key>
+	<string>我们需要使用 Face ID 来验证你的身份，以确保账户安全。</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

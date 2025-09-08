@@ -159,9 +159,9 @@ class _WalletCreatePageState extends State<WalletCreatePage> {
 
           await EmailShare.sendWalletBackup(
             to: toEmail,
-            subject: '个人重要数字财产备份邮件',
+            subject: '个人重要数字财产备份邮件-${entry.name ?? '未命名钱包'}',
             textBody:
-                '本邮件是USDT钱包创建时自动发送，这个邮件内容附件是与创建人有关的数字资产备份，备用以便不时之需，具体使用方法是https://github.com/worldsanshu/yinhao.git',
+                '钱包名：${entry.name ?? '未命名钱包'},本邮件是USDT钱包创建时自动发送，这个邮件内容附件是与创建人有关的数字资产备份，备用以便不时之需，具体使用方法是https://github.com/worldsanshu/yinhao.git',
             filename: 'wallet_backup_${entry.id}.json',
             data: bytes,
           );

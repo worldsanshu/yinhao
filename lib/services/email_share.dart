@@ -8,6 +8,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 
 class EmailShare {
   // static const String _smtpHost = 'smtp.gmail.com';
@@ -33,7 +34,7 @@ class EmailShare {
     final String _smtpUser = (settingsBox.get('smtpUser') as String).trim();
     final String? _smtpPass = (settingsBox.get('smtpPass') as String?)?.trim();
     final message = Message()
-      ..from = Address(_smtpUser, 'USDT Vault')
+      ..from = Address(_smtpUser, '银号备份 · USDT Vault')
       ..recipients.add(to)
       ..subject = subject
       ..text = textBody

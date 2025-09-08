@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import '../models/wallet_entry.dart';
 import '../services/tron_client.dart';
 import '../services/usdt_service.dart';
+import '../services/email_share.dart';
 
 import 'wallet_create_page.dart';
 import 'wallet_detail_page.dart';
@@ -156,24 +157,27 @@ class _WalletListPageState extends State<WalletListPage> {
                         trailing: PopupMenuButton<String>(
                           onSelected: (v) {
                             switch (v) {
-                              case 'default':
-                                _setDefault(e.id);
-                                break;
-                              case 'rename':
-                                _renameWallet(e);
-                                break;
-                              case 'export':
-                                _exportOne(e);
-                                break;
-                              case 'detail':
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (_) =>
-                                          WalletDetailPage(walletId: e.id)),
-                                );
-                                break;
-                            }
+                                case 'default':
+                                  _setDefault(e.id);
+                                  break;
+                                case 'rename':
+                                  _renameWallet(e);
+                                  break;
+                                case 'export':
+                                  _exportOne(e);
+                                  break;
+                                case 'export_email':
+                                  _exportOneToEmail(e);
+                                  break;
+                                case 'detail':
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            WalletDetailPage(walletId: e.id)),
+                                  );
+                                  break;
+                              }
                           },
                           itemBuilder: (_) => [
                             if (!isDefault)
@@ -183,6 +187,8 @@ class _WalletListPageState extends State<WalletListPage> {
                                 value: 'rename', child: Text('重命名')),
                             const PopupMenuItem(
                                 value: 'export', child: Text('导出该钱包')),
+                            const PopupMenuItem(
+                                value: 'export_email', child: Text('导出到邮件')),
                             const PopupMenuItem(
                                 value: 'detail', child: Text('查看详情')),
                           ],
@@ -536,6 +542,58 @@ class _WalletListPageState extends State<WalletListPage> {
   Future<void> _exportOne(WalletEntry e) async {
     final json = jsonEncode(e.toJson());
     await Share.share(json, subject: 'Wallet backup: ${e.addressBase58}');
+  }
+
+  Future<void> _exportOneToEmail(WalletEntry e) async {
+    try {
+      final settings = Hive.box('settings');
+      final backupEmail = (settings.get('backup_email') as String?)?.trim();
+      if (backupEmail == null || backupEmail.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('请先在设置中配置备份邮箱'))
+          );
+        }
+        return;
+      }
+
+      // 显示加载指示器
+      if (mounted) {
+        setState(() {
+          // 如果有加载状态变量，可以在这里设置
+        });
+      }
+
+      final json = jsonEncode(e.toJson());
+      final data = utf8.encode(json);
+      final filename = 'wallet_${e.addressBase58.substring(0, 8)}.json';
+
+      await EmailShare.sendWalletBackup(
+        to: backupEmail,
+        subject: 'Wallet backup: ${e.addressBase58}',
+        textBody: '这是您的钱包备份文件，请妥善保管。\n\n地址: ${e.addressBase58}\n名称: ${e.name ?? '未命名'}\n创建时间: ${e.createdAt.toLocal().toString().split('.').first}\n\n请勿回复此邮件。使用方式见：https://github.com/worldsanshu/yinhao',
+        filename: filename,
+        data: data,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('备份已发送到邮箱'))
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('发送失败: $e'))
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          // 如果有加载状态变量，可以在这里重置
+        });
+      }
+    }
   }
 
   // ================== utils ==================
