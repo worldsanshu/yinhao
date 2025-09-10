@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'transfer_success_page.dart' as ts;
 import 'package:permission_handler/permission_handler.dart';
 import '../services/crypto_service.dart';
 import '../widgets/qr_scan_sheet.dart';
@@ -58,7 +59,7 @@ class _TransferPageState extends State<TransferPage> {
   String? _energyTo; // 设置中配置的购买能量地址
   String? _energyTrx; // 设置中配置的购买能量消耗 TRX（金額，字符串）
   bool _hideP1 = true, _hideP2 = true, _hideP3 = true;
-
+  String? _tronApiKey; 
   WalletEntry? _entry; // 当前钱包（用于名称/提示）
 
   @override
@@ -70,6 +71,8 @@ class _TransferPageState extends State<TransferPage> {
       _energyTo = (s.get('energy_purchase_to') as String?) ??
           (s.get('trx_default_to') as String?);
       final amt = s.get('energy_purchase_to_number');
+      final  _tronApiKey = (s.get('trongrid_api_key') as String?) ??
+          (s.get('trongrid_api_key') as String?);;
       if (amt != null) _energyTrx = amt.toString();
     } catch (_) {}
     _asset = widget.initialAsset;
@@ -418,13 +421,26 @@ class _TransferPageState extends State<TransferPage> {
         );
       }
 
-      if (!mounted) return;
-      // 成功：回传真实 txID
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已提交：$txId')),
-      );
-      Navigator.pop(context, true);
-    } catch (e) {
+      
+if (!mounted) return;
+// 成功：回传真实 txID
+ScaffoldMessenger.of(context).showSnackBar(
+  SnackBar(content: Text('已提交：$txId')),
+);
+// 跳转到“转账详情/成功页”，展示真实链上信息
+await Navigator.of(context).push(MaterialPageRoute(
+  builder: (_) => ts.TransferSuccessPage(
+    txId: txId,
+    fromAddress: entry.addressBase58,
+    toAddress: toAddr,
+    amount: amount,
+    asset: (_asset == AssetType.usdt) ? ts.AssetType.usdt : ts.AssetType.trx,
+    tronApiKey: null,
+  ),
+));
+// 从成功页返回后，把结果回传给上一个页面（保持原有交互刷新）
+if (mounted) Navigator.pop(context, true);
+} catch (e) {
       if (mounted) {
         // 友好化错误提示（口令错误 / 能量不足 / 节点报错等）
         final msg = e.toString().contains('口令') ? '三组口令不正确' : e.toString();
