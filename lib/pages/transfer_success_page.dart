@@ -275,18 +275,15 @@ class _TransferSuccessPageState extends State<TransferSuccessPage> {
                 label: const Text('Tronscan 查看'),
              
                 onPressed: () async {
-              final url = ExplorerSheet.tronscanUrl(
-                origin: 'https://tronscan.org/#/', // 可改你喜欢的浏览器域名
-                path: 'transaction/${widget.txId}',
-              );
-	             final url2 = Uri.parse('https://tronscan.org/#/transaction/${widget.txId}').toString();
+                  final txId = widget.txId;
+	                final url = Uri.parse('https://tronscan.org/#/transaction/${txId.toLowerCase()}').toString();
                   await Clipboard.setData(ClipboardData(text: url.toString()));
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('已复制 Tronscan 链接到剪贴板')),
                     );
                   }
-                   ExplorerSheet.show(context, url: url2);
+                   ExplorerSheet.show(context, url: url);
                 },
               ),
             ),

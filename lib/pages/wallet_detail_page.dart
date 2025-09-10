@@ -239,10 +239,12 @@ class _WalletDetailPageState extends State<WalletDetailPage> {
             tooltip: '在区块浏览器打开',
             icon: const Icon(Icons.open_in_new),
             onPressed: () {
-              final url = ExplorerSheet.tronscanUrl(
-                origin: 'https://tronscan.org/#', // 可改你喜欢的浏览器域名
-                path: 'address/$address',
-              );
+              // final url = ExplorerSheet.tronscanUrl(
+              //   origin: 'https://tronscan.org/#', // 可改你喜欢的浏览器域名
+              //   path: 'address/$address',
+              // );
+        
+                  final url = Uri.parse('https://tronscan.org/#/address/$address/transfers').toString();
               ExplorerSheet.show(context, url: url);
             },
           ),
