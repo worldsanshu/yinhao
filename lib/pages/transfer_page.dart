@@ -38,13 +38,6 @@ class TransferPage extends StatefulWidget {
 }
 
 class _TransferPageState extends State<TransferPage> {
-  void _showError(Object e) {
-    final msg = e is Exception
-        ? e.toString().replaceFirst('Exception: ', '')
-        : e.toString();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
 
   final _addrCtl = TextEditingController();
   final _amtCtl = TextEditingController();
@@ -71,8 +64,8 @@ class _TransferPageState extends State<TransferPage> {
       _energyTo = (s.get('energy_purchase_to') as String?) ??
           (s.get('trx_default_to') as String?);
       final amt = s.get('energy_purchase_to_number');
-      final  _tronApiKey = (s.get('trongrid_api_key') as String?) ??
-          (s.get('trongrid_api_key') as String?);;
+     _tronApiKey = (s.get('trongrid_api_key') as String?)?.trim();
+
       if (amt != null) _energyTrx = amt.toString();
     } catch (_) {}
     _asset = widget.initialAsset;
@@ -427,6 +420,10 @@ if (!mounted) return;
 ScaffoldMessenger.of(context).showSnackBar(
   SnackBar(content: Text('已提交：$txId')),
 );
+final tronApiKeyNow =
+    (Hive.box('settings').get('trongrid_api_key') as String?)?.trim();
+print('_tronApiKey: $_tronApiKey');
+print('tronApiKeyNow: $tronApiKeyNow');
 // 跳转到“转账详情/成功页”，展示真实链上信息
 await Navigator.of(context).push(MaterialPageRoute(
   builder: (_) => ts.TransferSuccessPage(
@@ -435,7 +432,7 @@ await Navigator.of(context).push(MaterialPageRoute(
     toAddress: toAddr,
     amount: amount,
     asset: (_asset == AssetType.usdt) ? ts.AssetType.usdt : ts.AssetType.trx,
-    tronApiKey: null,
+    tronApiKey: _tronApiKey,
   ),
 ));
 // 从成功页返回后，把结果回传给上一个页面（保持原有交互刷新）
@@ -566,7 +563,7 @@ if (mounted) Navigator.pop(context, true);
                       children: [
                         Expanded(
                           child: Text(
-                            '是否先购买能量（仅 USDT 时显示）',
+                            '是否先购买能量（快捷转TRX）',
                             style: TextStyle(color: tileFg, fontSize: 14),
                           ),
                         ),
@@ -585,7 +582,7 @@ if (mounted) Navigator.pop(context, true);
                       Text(_energyTo?.isNotEmpty == true ? _energyTo! : '未配置',
                           style: TextStyle(color: tileFg)),
                       const SizedBox(height: 6),
-                      Text('能量购买TRX金额',
+                      Text('能量购买转出TRX金额',
                           style: TextStyle(
                               fontSize: 12, color: tileFg.withOpacity(0.8))),
                       const SizedBox(height: 4),
