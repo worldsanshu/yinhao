@@ -330,7 +330,46 @@ class _TransferPageState extends State<TransferPage> {
   // ---------------- 提交（接你的实际链上逻辑） ----------------
 
   Future<void> _submit(String toAddr, String amount) async {
-    setState(() => _submitting = true);
+    
+    // ---- 弹窗 Loading 助手 ----
+    bool _loadingShown = false;
+    void _showLoading(String msg) {
+      _loadingShown = true;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          content: Row(
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(width: 16),
+              Expanded(child: Text(msg)),
+            ],
+          ),
+        ),
+      );
+    }
+    void _updateLoading(String msg) {
+      if (_loadingShown) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      _showLoading(msg);
+    }
+    void _closeLoading() {
+      if (_loadingShown) {
+        try { Navigator.of(context, rootNavigator: true).pop(); } catch (_) {}
+        _loadingShown = false;
+      }
+    }
+
+    // 初始 Loading：根据是否需要购买能量显示不同文案
+    if (_asset == AssetType.usdt && _withEnergy == true && _energyTo != null && _energyTrx != null) {
+      _showLoading('在购买能量中');
+    } else {
+      _showLoading('正在转账中');
+    }
+
+setState(() => _submitting = true);
     try {
       final entry = _entry!;
       final p1 = _p1Ctl.text.trim(),
@@ -375,6 +414,7 @@ class _TransferPageState extends State<TransferPage> {
           );
           // 2) 等 5 秒（平台入账开单）
           await Future.delayed(const Duration(seconds: 5));
+          _updateLoading('正在转账中');
         }
 
         // 主网 USDT（请再次核对）
@@ -425,6 +465,7 @@ final tronApiKeyNow =
 print('_tronApiKey: $_tronApiKey');
 print('tronApiKeyNow: $tronApiKeyNow');
 // 跳转到“转账详情/成功页”，展示真实链上信息
+_closeLoading();
 await Navigator.of(context).push(MaterialPageRoute(
   builder: (_) => ts.TransferSuccessPage(
     txId: txId,
@@ -446,6 +487,7 @@ if (mounted) Navigator.pop(context, true);
         );
       }
     } finally {
+      _closeLoading();
       if (mounted) setState(() => _submitting = false);
     }
   }
@@ -468,7 +510,9 @@ if (mounted) Navigator.pop(context, true);
         ? _entry!.name!.trim()
         : (_entry?.addressBase58 ?? '');
 
-    return Scaffold(
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
       appBar: AppBar(title: Text('转账 $assetText')),
       resizeToAvoidBottomInset: true, // 确保键盘弹出时页面上推
       body: Form(
@@ -582,7 +626,7 @@ if (mounted) Navigator.pop(context, true);
                       Text(_energyTo?.isNotEmpty == true ? _energyTo! : '未配置',
                           style: TextStyle(color: tileFg)),
                       const SizedBox(height: 6),
-                      Text('能量购买转出TRX金额',
+                      Text('能量购买转出TRX金额（可在设置中配置）',
                           style: TextStyle(
                               fontSize: 12, color: tileFg.withOpacity(0.8))),
                       const SizedBox(height: 4),
@@ -747,7 +791,9 @@ if (mounted) Navigator.pop(context, true);
             const SizedBox(height: 20),
           ],
         ),
-      ),
+   
+    ),
+    ),
     );
   }
 }
