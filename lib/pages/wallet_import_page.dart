@@ -45,6 +45,7 @@ class _WalletImportPageState extends State<WalletImportPage> {
             child: Text(
               _busy ? '保存中...' : '保存(${_items.length})',
               style: TextStyle(
+                // color:  Colors.white
                 color: canSave
                     ? Theme.of(context).colorScheme.onPrimary
                     : Theme.of(context).disabledColor,
