@@ -17,8 +17,16 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'transfer_success_page.dart' as ts;
 import 'package:permission_handler/permission_handler.dart';
 import '../services/crypto_service.dart';
+import '../services/wallet_security_service.dart';
+import '../services/wallet_validation_service.dart';
+import '../services/tron_client.dart';
+import '../services/usdt_service.dart';
 import '../widgets/qr_scan_sheet.dart';
 import '../models/wallet_entry.dart';
+import '../models/address_book.dart';
+import '../services/address_book_service.dart';
+import '../widgets/address_picker_sheet.dart';
+import '../widgets/add_address_dialog.dart';
 
 /// 资产类型（详情页通过 initialAsset 预选）
 enum AssetType { usdt, trx }
@@ -54,6 +62,16 @@ class _TransferPageState extends State<TransferPage> {
   bool _hideP1 = true, _hideP2 = true, _hideP3 = true;
   String? _tronApiKey; 
   WalletEntry? _entry; // 当前钱包（用于名称/提示）
+  
+  // 钱包余额信息
+  String _trxBalance = '0.00';
+  String _usdtBalance = '0.00';
+  
+  // 锁定状态相关
+  int _passwordAttempts = 0;
+  DateTime? _lockedUntil;
+  bool _isLocked = false;
+  Timer? _lockCheckTimer; // 添加定时器用于定期检查锁定状态
 
   @override
   void initState() {
@@ -71,6 +89,103 @@ class _TransferPageState extends State<TransferPage> {
     _asset = widget.initialAsset;
     final box = Hive.box('wallets');
     _entry = WalletEntry.tryFrom(box.get(widget.walletId));
+    _checkLockStatus();
+    
+    // 启动定期检查锁定状态的定时器（每10秒检查一次）
+    _startLockTimer();
+    
+    // 获取余额信息
+    _fetchBalances();
+  }
+
+  // 启动定期检查锁定状态的定时器
+  void _startLockTimer() {
+    _lockCheckTimer?.cancel(); // 确保之前的定时器已取消
+    _lockCheckTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) {
+        _checkLockStatus();
+        // 每30秒也更新一次余额
+        if (_lockCheckTimer?.tick != null && _lockCheckTimer!.tick % 3 == 0) {
+          _fetchBalances();
+        }
+      }
+    });
+  }
+  
+  // 获取当前钱包的余额信息
+  Future<void> _fetchBalances() async {
+    try {
+      if (_entry != null && _entry!.addressBase58.isNotEmpty) {
+        final client = TronClient(
+          endpoint: 'https://api.trongrid.io',
+          apiKey: _tronApiKey,
+        );
+        final usdtService = UsdtService(client);
+        final (trx, usdt) = await usdtService.balances(_entry!.addressBase58);
+        
+        if (mounted) {
+          setState(() {
+            _trxBalance = trx;
+            _usdtBalance = usdt;
+          });
+        }
+      }
+    } catch (e) {
+      print('获取余额失败: $e');
+    }
+  }
+
+  Future<void> _checkLockStatus() async {
+    if (_entry?.id == null) return;
+    
+    _isLocked = await WalletSecurityService.isWalletLocked(_entry!.id!);
+    
+    if (_isLocked) {
+      final remainingTime = await WalletSecurityService.getRemainingLockTime(_entry!.id!);
+      if (remainingTime != null) {
+        _lockedUntil = DateTime.now().add(remainingTime);
+      } else {
+        // 如果无法获取剩余锁定时间，默认设为锁定30分钟
+        _lockedUntil = DateTime.now().add(Duration(minutes: 30));
+      }
+    } else {
+      // 如果钱包未锁定，确保_lockedUntil为null
+      _lockedUntil = null;
+    }
+    
+    setState(() {});
+  }
+
+  Future<void> _onPasswordFailure() async {
+    if (_entry?.id == null) return;
+    
+    _passwordAttempts++;
+    await WalletSecurityService.recordFailedAttempt(_entry!.id!);
+    
+    if (_passwordAttempts >= 3) {
+      // 锁定30分钟
+      _lockedUntil = DateTime.now().add(Duration(minutes: 30));
+      _isLocked = true;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('密码错误已达3次，钱包已锁定30分钟')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('密码错误，请重试（${_passwordAttempts}/3）')),
+      );
+    }
+    
+    setState(() {});
+  }
+
+  Future<void> _onPasswordSuccess() async {
+    if (_entry?.id == null) return;
+    
+    await WalletSecurityService.resetFailedAttempts(_entry!.id!);
+    _passwordAttempts = 0;
+    _isLocked = false;
+    _lockedUntil = null;
   }
 
   @override
@@ -80,7 +195,15 @@ class _TransferPageState extends State<TransferPage> {
     _p1Ctl.dispose();
     _p2Ctl.dispose();
     _p3Ctl.dispose();
+    _lockCheckTimer?.cancel(); // 清理定时器
     super.dispose();
+  }
+  
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 当页面依赖关系变化时（如从其他页面返回），重新检查锁定状态
+    _checkLockStatus();
   }
 
   // ---------------- 样式辅助 ----------------
@@ -186,11 +309,72 @@ class _TransferPageState extends State<TransferPage> {
     }
   }
 
+  // 打开地址选择器
+  Future<void> _openAddressPicker() async {
+    if (!mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => AddressPickerSheet(
+        onSelectAddress: (entry) {
+          // 选择地址后填充到输入框
+          _addrCtl.text = entry.address;
+          setState(() {});
+          Navigator.pop(context);
+          
+          // 显示提示信息
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('已选择地址：${entry.name}')),
+          );
+        },
+        onAddNewAddress: _addNewAddress,
+      ),
+    );
+  }
+
+  // 添加新地址
+  Future<void> _addNewAddress() async {
+    if (!mounted) return;
+    // 关闭当前的底部面板
+    Navigator.pop(context);
+    
+    // 打开添加地址对话框
+    final newEntry = await showDialog<AddressBookEntry>(
+      context: context,
+      builder: (_) => const AddAddressDialog(),
+    );
+    
+    // 如果成功添加了新地址，重新打开地址选择器
+    if (newEntry != null && mounted) {
+      // 直接使用新添加的地址
+      _addrCtl.text = newEntry.address;
+      setState(() {});
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已添加地址：${newEntry.name}')),
+      );
+      
+      // 可选：重新打开地址选择器，让用户可以看到新添加的地址
+      // _openAddressPicker();
+    }
+  }
+
   // ---------------- 二次确认 → 最终确认 → 提交 ----------------
 
   Future<void> _onNext() async {
     if (_submitting) return;
     if (!_formKey.currentState!.validate()) return;
+    if (_isLocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('钱包已锁定，请稍后再试')),
+      );
+      return;
+    }
 
     setState(() => _submitting = true);
     try {
@@ -207,11 +391,11 @@ class _TransferPageState extends State<TransferPage> {
         _p3Ctl.text,
       );
       if (!passOk) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('三组口令不正确')));
+        await _onPasswordFailure();
         return;
       }
+
+      await _onPasswordSuccess();
 
       // 一级确认：底部面板勾选复核项
       final ok1 = await showModalBottomSheet<bool>(
@@ -327,9 +511,66 @@ class _TransferPageState extends State<TransferPage> {
     );
   }
 
+  // ---------------- 提交前的增强验证 ----------------
+
+  Future<bool> _enhancedPreTransferValidation() async {
+    if (_entry == null) return false;
+
+    try {
+      // 使用增强的钱包验证服务进行验证
+      // 这里不传入原始私钥（因为我们没有），但仍然会进行密码验证、地址匹配验证和网络可用性验证
+      final isValid = await WalletValidationService.enhancedWalletValidation(
+        _entry!,
+        null, // 不传入原始私钥
+        _p1Ctl.text,
+        _p2Ctl.text,
+        _p3Ctl.text,
+      );
+
+      if (!isValid) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('转账前验证失败，无法继续转账'))
+          );
+        }
+        return false;
+      }
+
+      // 检查转账能力
+      final amount = double.tryParse(_amtCtl.text.trim()) ?? 0;
+      final transferCapability = await WalletValidationService.validateTransferCapability(
+        _entry!.addressBase58,
+        amount,
+        _asset == AssetType.usdt
+      );
+
+      if (!transferCapability['isValid']) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(transferCapability['error']))
+          );
+        }
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('转账前验证失败：$e'))
+        );
+      }
+      return false;
+    }
+  }
+
   // ---------------- 提交（接你的实际链上逻辑） ----------------
 
   Future<void> _submit(String toAddr, String amount) async {
+    // 执行增强的转账前验证
+    if (!await _enhancedPreTransferValidation()) {
+      return;
+    }
     
     // ---- 弹窗 Loading 助手 ----
     bool _loadingShown = false;
@@ -488,8 +729,12 @@ if (mounted) Navigator.pop(context, true);
       }
     } finally {
       _closeLoading();
-      if (mounted) setState(() => _submitting = false);
-    }
+                  if (mounted) {
+                    setState(() => _submitting = false);
+                    // 转账成功后更新余额
+                    _fetchBalances();
+                  }
+                }
   }
 
   // ---------------- UI ----------------
@@ -510,290 +755,385 @@ if (mounted) Navigator.pop(context, true);
         ? _entry!.name!.trim()
         : (_entry?.addressBase58 ?? '');
 
+    // 计算剩余锁定时间
+    String? lockTimeRemaining;
+    if (_isLocked && _lockedUntil != null) {
+      final now = DateTime.now();
+      final difference = _lockedUntil!.difference(now);
+      if (difference.isNegative) {
+        // 锁定时间已过，自动解锁
+        _isLocked = false;
+        _lockedUntil = null;
+        _passwordAttempts = 0;
+        _checkLockStatus();
+      } else {
+        final minutes = difference.inMinutes;
+        final seconds = difference.inSeconds % 60;
+        lockTimeRemaining = '$minutes分$seconds秒';
+      }
+    }
+
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
       appBar: AppBar(title: Text('转账 $assetText')),
       resizeToAvoidBottomInset: true, // 确保键盘弹出时页面上推
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(12),
-          children: [
-            // 顶部：当前钱包
-            if (walletName.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(left: 4, bottom: 6),
-                child: Text('当前钱包：$walletName',
-                    style:
-                        const TextStyle(fontSize: 12, color: Colors.black54)),
-              ),
-
-            // 1) 收款地址（多行 + 粘贴 + 扫码）
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                  color: tileBg, borderRadius: BorderRadius.circular(12)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('收款地址',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w600, color: tileFg)),
-                  const SizedBox(height: 8),
-                  Row(
+      body: RefreshIndicator(
+        onRefresh: () async {
+          // 下拉刷新时检查锁定状态
+          await _checkLockStatus();
+        },
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(12),
+            children: [
+              // 锁定状态显示
+              if (_isLocked && lockTimeRemaining != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.withOpacity(0.3))
+                  ),
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _addrCtl,
-                          validator: _validateAddress,
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                          minLines: 2,
-                          maxLines: 4, // 多行显示，方便反复核对
-                          keyboardType: TextInputType.multiline,
-                          decoration: _filledInput(
-                              '粘贴或扫描 Tron 地址（以 T 开头，可包含换行/前缀）', tileBg),
-                          onChanged: (_) => setState(() {}),
+                      const Text(
+                        '钱包已锁定',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Column(
-                        children: [
-                          IconButton(
-                            tooltip: '粘贴',
-                            onPressed: () async {
-                              final data =
-                                  await Clipboard.getData(Clipboard.kTextPlain);
-                              final t = data?.text ?? '';
-                              if (t.isNotEmpty) {
-                                _addrCtl.text = t;
-                                setState(() {});
-                              }
-                            },
-                            icon: Icon(Icons.paste, color: tileFg),
-                          ),
-                          IconButton(
-                            tooltip: '扫码识别',
-                            // onPressed: _openScanner,
-                            icon: Icon(Icons.qr_code_scanner, color: tileFg),
-                            onPressed: () async {
-                              final raw = await showQrScannerSheet(context);
-                              if (raw == null || raw.isEmpty) return;
-                              final addr = extractTronBase58(raw) ?? raw;
-                              _addrCtl.text = addr;
-                              setState(() {});
-                            },
-                          ),
-                        ],
+                      const SizedBox(height: 4),
+                      Text(
+                        '密码错误已达3次，将在$lockTimeRemaining后解锁',
+                        style: TextStyle(color: Colors.red, fontSize: 14),
+                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  // 识别出的标准地址回显
-                  Builder(builder: (_) {
-                    final normalized = _extractTronAddress(_addrCtl.text);
-                    return Text(
-                      normalized == null ? '未识别到有效地址' : '识别为：$normalized',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color:
-                              normalized == null ? Colors.red : const Color.fromARGB(137, 148, 148, 148)),
-                    );
-                  }),
-                  const SizedBox(height: 12),
-                  if (_asset == AssetType.usdt) ...[
-                    Divider(height: 20, color: tileFg.withOpacity(0.12)),
+                ),
+              // 顶部：当前钱包
+              if (walletName.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 6),
+                  child: Text('当前钱包：$walletName',
+                      style:
+                          const TextStyle(fontSize: 12, color: Colors.black54)),
+                ),
+
+              // 1) 收款地址（多行 + 粘贴 + 扫码）
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                    color: tileBg, borderRadius: BorderRadius.circular(12)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('收款地址',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, color: tileFg)),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            '是否先购买能量（快捷转TRX）',
-                            style: TextStyle(color: tileFg, fontSize: 14),
+                          child: TextFormField(
+                            controller: _addrCtl,
+                            validator: _validateAddress,
+                            autovalidateMode: AutovalidateMode.onUserInteraction,
+                            minLines: 2,
+                            maxLines: 4, // 多行显示，方便反复核对
+                            keyboardType: TextInputType.multiline,
+                            decoration: _filledInput(
+                                '粘贴或扫描 Tron 地址（以 T 开头，可包含换行/前缀）', tileBg),
+                            onChanged: (_) => setState(() {}),
                           ),
                         ),
-                        Switch(
-                          value: _withEnergy,
-                          onChanged: (v) => setState(() => _withEnergy = v),
+                        const SizedBox(width: 8),
+                        Column(
+                          children: [
+                            IconButton(
+                              tooltip: '粘贴',
+                              onPressed: () async {
+                                final data = 
+                                    await Clipboard.getData(Clipboard.kTextPlain);
+                                final t = data?.text ?? '';
+                                if (t.isNotEmpty) {
+                                  _addrCtl.text = t;
+                                  setState(() {});
+                                }
+                              },
+                              icon: Icon(Icons.paste, color: tileFg),
+                            ),
+                            IconButton(
+                              tooltip: '扫码识别',
+                              // onPressed: _openScanner,
+                              icon: Icon(Icons.qr_code_scanner, color: tileFg),
+                              onPressed: () async {
+                                final raw = await showQrScannerSheet(context);
+                                if (raw == null || raw.isEmpty) return;
+                                final addr = extractTronBase58(raw) ?? raw;
+                                _addrCtl.text = addr;
+                                setState(() {});
+                              },
+                            ),
+                            IconButton(
+                              tooltip: '选择地址',
+                              icon: Icon(Icons.contacts, color: tileFg),
+                              onPressed: _openAddressPicker,
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    if (_withEnergy) ...[
-                      const SizedBox(height: 8),
-                      Text('能量购买地址（可在设置中配置）',
-                          style: TextStyle(
-                              fontSize: 12, color: tileFg.withOpacity(0.8))),
-                      const SizedBox(height: 4),
-                      Text(_energyTo?.isNotEmpty == true ? _energyTo! : '未配置',
-                          style: TextStyle(color: tileFg)),
-                      const SizedBox(height: 6),
-                      Text('能量购买转出TRX金额（可在设置中配置）',
-                          style: TextStyle(
-                              fontSize: 12, color: tileFg.withOpacity(0.8))),
-                      const SizedBox(height: 4),
-                      Text(_energyTrx?.isNotEmpty == true ? _energyTrx! : '未配置',
-                          style: TextStyle(color: tileFg)),
+                    const SizedBox(height: 6),
+                    // 识别出的标准地址回显
+                    Builder(builder: (_) {
+                      final normalized = _extractTronAddress(_addrCtl.text);
+                      return Text(
+                        normalized == null ? '未识别到有效地址' : '识别为：$normalized',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color:
+                                normalized == null ? Colors.red : const Color.fromARGB(137, 148, 148, 148)),
+                      );
+                    }),
+                    const SizedBox(height: 12),
+                    if (_asset == AssetType.usdt) ...[
+                      Divider(height: 20, color: tileFg.withOpacity(0.12)),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '是否先购买能量（快捷转TRX）',
+                              style: TextStyle(color: tileFg, fontSize: 14),
+                            ),
+                          ),
+                          Switch(
+                            value: _withEnergy,
+                            onChanged: (v) => setState(() => _withEnergy = v),
+                          ),
+                        ],
+                      ),
+                      if (_withEnergy) ...[
+                        const SizedBox(height: 8),
+                        Text('能量购买地址（可在设置中配置）',
+                            style: TextStyle(
+                                fontSize: 12, color: tileFg.withOpacity(0.8))),
+                        const SizedBox(height: 4),
+                        Text(_energyTo?.isNotEmpty == true ? _energyTo! : '未配置',
+                            style: TextStyle(color: tileFg)),
+                        const SizedBox(height: 6),
+                        Text('能量购买转出TRX金额（可在设置中配置）',
+                            style: TextStyle(
+                                fontSize: 12, color: tileFg.withOpacity(0.8))),
+                        const SizedBox(height: 4),
+                        Text(_energyTrx?.isNotEmpty == true ? _energyTrx! : '未配置',
+                            style: TextStyle(color: tileFg)),
+                      ],
+                      Divider(height: 16, color: tileFg.withOpacity(0.12)),
                     ],
-                    Divider(height: 16, color: tileFg.withOpacity(0.12)),
                   ],
-                ],
+                ),
               ),
-            ),
 
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-            // 2) 金额
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                  color: tileBg, borderRadius: BorderRadius.circular(12)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('金额（$assetText）',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w600, color: tileFg)),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _amtCtl,
-                    validator: _validateAmount,
-                    autovalidateMode: AutovalidateMode.onUserInteraction,
-                    decoration: _filledInput('请输入转账金额', tileBg),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [
-                      // USDT/TRX 常见精度：保留 6 位
-                      FilteringTextInputFormatter.allow(
-                          RegExp(r'^\d*\.?\d{0,6}')),
-                    ],
-                    textInputAction: TextInputAction.next,
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // 3) 三个密码（必须全部输入）
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                  color: tileBg, borderRadius: BorderRadius.circular(12)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('输入三个密码（与创建钱包时一致）',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w600, color: tileFg)),
-                  const SizedBox(height: 8),
-
-                  // 密码1
-                  TextFormField(
-                    controller: _p1Ctl,
-                    validator: _req,
-                    autovalidateMode: AutovalidateMode.onUserInteraction,
-                    obscureText: _hideP1,
-                    decoration: _filledInput('密码1', tileBg).copyWith(
-                      suffixIcon: IconButton(
-                        onPressed: () => setState(() => _hideP1 = !_hideP1),
-                        icon: Icon(
-                            _hideP1 ? Icons.visibility_off : Icons.visibility),
+              // 2) 金额
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                    color: tileBg, borderRadius: BorderRadius.circular(12)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('金额（$assetText）',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, color: tileFg)),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _amtCtl,
+                      validator: _validateAmount,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      decoration: _filledInput('请输入转账金额', tileBg),
+                      keyboardType: 
+                          const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        // USDT/TRX 常见精度：保留 6 位
+                        FilteringTextInputFormatter.allow(
+                            RegExp(r'^\d*\.?\d{0,6}')),
+                      ],
+                      textInputAction: TextInputAction.next,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: 8),
+                    // 显示当前钱包的余额
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '当前 $assetText 余额:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: tileFg.withOpacity(0.7),
+                          ),
+                        ),
+                        Text(
+                          _asset == AssetType.usdt ? _usdtBalance : _trxBalance,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: tileFg,
+                          ),
+                        ),
+                      ],
+                    ),
+                    // 添加全部按钮
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () {
+                          _amtCtl.text = _asset == AssetType.usdt 
+                              ? _usdtBalance 
+                              : _trxBalance;
+                        },
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: const Size(0, 0),
+                        ),
+                        child: const Text('全部'),
                       ),
                     ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  if ((_entry?.hint1?.trim().isNotEmpty ?? false))
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text('提示：${_entry!.hint1!}',
-                          style: const TextStyle(
-                              fontSize: 12, color: Colors.black54)),
-                    ),
-
-                  const SizedBox(height: 10),
-
-                  // 密码2
-                  TextFormField(
-                    controller: _p2Ctl,
-                    validator: _req,
-                    autovalidateMode: AutovalidateMode.onUserInteraction,
-                    obscureText: _hideP2,
-                    decoration: _filledInput('密码2', tileBg).copyWith(
-                      suffixIcon: IconButton(
-                        onPressed: () => setState(() => _hideP2 = !_hideP2),
-                        icon: Icon(
-                            _hideP2 ? Icons.visibility_off : Icons.visibility),
-                      ),
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  if ((_entry?.hint2?.trim().isNotEmpty ?? false))
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text('提示：${_entry!.hint2!}',
-                          style: const TextStyle(
-                              fontSize: 12, color: Colors.black54)),
-                    ),
-
-                  const SizedBox(height: 10),
-
-                  // 密码3
-                  TextFormField(
-                    controller: _p3Ctl,
-                    validator: _req,
-                    autovalidateMode: AutovalidateMode.onUserInteraction,
-                    obscureText: _hideP3,
-                    decoration: _filledInput('密码3', tileBg).copyWith(
-                      suffixIcon: IconButton(
-                        onPressed: () => setState(() => _hideP3 = !_hideP3),
-                        icon: Icon(
-                            _hideP3 ? Icons.visibility_off : Icons.visibility),
-                      ),
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  if ((_entry?.hint3?.trim().isNotEmpty ?? false))
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text('提示：${_entry!.hint3!}',
-                          style: const TextStyle(
-                              fontSize: 12, color: Colors.black54)),
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
 
-            const SizedBox(height: 18),
+              const SizedBox(height: 12),
 
-            // 4) 最后显示：下一步（仅当全部校验通过）
-            FilledButton.icon(
-                onPressed: (_canProceed && !_submitting) ? _onNext : null,
-                icon: _submitting
-                    ? SizedBox(
-                        // ← 去掉 const，避免 const+非常量子树
-                        width: 18, height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.keyboard_double_arrow_right),
-              label: const Text('下一步'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+              // 3) 三个密码（必须全部输入）
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                    color: tileBg, borderRadius: BorderRadius.circular(12)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('输入三个密码（与创建钱包时一致）',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, color: tileFg)),
+                    const SizedBox(height: 8),
+
+                    // 密码1
+                    TextFormField(
+                      controller: _p1Ctl,
+                      validator: _req,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      obscureText: _hideP1,
+                      decoration: _filledInput('密码1', tileBg).copyWith(
+                        suffixIcon: IconButton(
+                          onPressed: () => setState(() => _hideP1 = !_hideP1),
+                          icon: Icon(
+                              _hideP1 ? Icons.visibility_off : Icons.visibility),
+                        ),
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    if ((_entry?.hint1?.trim().isNotEmpty ?? false))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text('提示：${_entry!.hint1!}',
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.black54)),
+                      ),
+
+                    const SizedBox(height: 10),
+
+                    // 密码2
+                    TextFormField(
+                      controller: _p2Ctl,
+                      validator: _req,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      obscureText: _hideP2,
+                      decoration: _filledInput('密码2', tileBg).copyWith(
+                        suffixIcon: IconButton(
+                          onPressed: () => setState(() => _hideP2 = !_hideP2),
+                          icon: Icon(
+                              _hideP2 ? Icons.visibility_off : Icons.visibility),
+                        ),
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    if ((_entry?.hint2?.trim().isNotEmpty ?? false))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text('提示：${_entry!.hint2!}',
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.black54)),
+                      ),
+
+                    const SizedBox(height: 10),
+
+                    // 密码3
+                    TextFormField(
+                      controller: _p3Ctl,
+                      validator: _req,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      obscureText: _hideP3,
+                      decoration: _filledInput('密码3', tileBg).copyWith(
+                        suffixIcon: IconButton(
+                          onPressed: () => setState(() => _hideP3 = !_hideP3),
+                          icon: Icon(
+                              _hideP3 ? Icons.visibility_off : Icons.visibility),
+                        ),
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    if ((_entry?.hint3?.trim().isNotEmpty ?? false))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text('提示：${_entry!.hint3!}',
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.black54)),
+                      ),
+                  ],
+                ),
               ),
-            ),
 
-            const SizedBox(height: 8),
-            const Text(
-              '安全提示：请务必核对收款地址与金额；USDT 为合约代币，TRX 为主币，请确保余额与网络费充足。',
-              style: TextStyle(fontSize: 12, color: Colors.black54),
-            ),
-            const SizedBox(height: 20),
-          ],
+              const SizedBox(height: 18),
+
+              // 4) 最后显示：下一步（仅当全部校验通过）
+              FilledButton.icon(
+                  onPressed: (_canProceed && !_submitting) ? _onNext : null,
+                  icon: _submitting
+                      ? SizedBox(
+                          // ← 去掉 const，避免 const+非常量子树
+                          width: 18, height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.keyboard_double_arrow_right),
+                label: const Text('下一步'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+
+              const SizedBox(height: 8),
+              const Text(
+                '安全提示：请务必核对收款地址与金额；USDT 为合约代币，TRX 为主币，请确保余额与网络费充足。',
+                style: TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
-   
-    ),
-    ),
+      ),
+      ),
     );
   }
 }

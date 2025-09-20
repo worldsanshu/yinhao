@@ -50,5 +50,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>该应用需要访问本地网络以获取账户信息和交易数据。</string>
+	<key>NSBonjourServices</key>
+	<array/>
 </dict>
 </plist>

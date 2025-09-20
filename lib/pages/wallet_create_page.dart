@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:convert/convert.dart';
 
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
@@ -7,7 +8,8 @@ import '../services/crypto_service.dart';
 import '../models/wallet_entry.dart';
 import 'dart:async';
 import '../services/email_share.dart';
-import 'package:flutter/material.dart';
+import '../services/wallet_import_service.dart';
+import '../services/wallet_validation_service.dart';
 
 class WalletCreatePage extends StatefulWidget {
   const WalletCreatePage({super.key});
@@ -86,6 +88,28 @@ class _WalletCreatePageState extends State<WalletCreatePage> {
       return;
     }
 
+    // 显示钱包信息重要性提示
+    final proceed = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            title: const Text('重要提示'),
+            content: const Text(
+              '请务必妥善保管钱包的三个密码，一旦丢失将无法找回钱包内的资产。\n\n建议您完成创建后立即进行备份。',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('我已了解，继续创建'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!proceed) return;
+
     setState(() => _busy = true);
     try {
       final pk = CryptoService.generatePrivateKey32();
@@ -143,7 +167,26 @@ class _WalletCreatePageState extends State<WalletCreatePage> {
 
       final box = Hive.box('wallets');
       await box.put(entry.id, entry.toJson());
-// 邮件备份：如果设置中配置了收件邮箱，则发送钱包导出信息作为附件
+
+      // 使用增强的钱包验证服务进行验证
+      final isWalletValid =
+          await WalletValidationService.enhancedWalletValidation(
+              entry,
+              hex.encode(pk), // 传入原始私钥进行完整验证
+              p1,
+              p2,
+              p3);
+
+      if (!isWalletValid) {
+        // 验证失败，删除钱包
+        final box = Hive.box('wallets');
+        if (box.containsKey(entry.id)) {
+          await box.delete(entry.id);
+        }
+        throw Exception('钱包验证失败，无法使用此钱包。请重新创建。');
+      }
+
+      // 邮件备份：如果设置中配置了收件邮箱，则发送钱包导出信息作为附件
       try {
         final settingsBox = Hive.isBoxOpen('settings')
             ? Hive.box('settings')
@@ -171,8 +214,25 @@ class _WalletCreatePageState extends State<WalletCreatePage> {
         debugPrint('Email backup skipped or failed: $e');
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('钱包已创建并保存')));
+
+      // 钱包创建成功后显示备份提示
+      await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: const Text('钱包创建成功'),
+          content: const Text(
+            '您的钱包已成功创建！\n\n⚠️ 请务必立即进行钱包备份，妥善保管您的三个密码和备份文件。\n\n如果您丢失了密码或备份文件，将无法恢复钱包内的资产！',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('我会立即备份'),
+            ),
+          ],
+        ),
+      );
 
       Navigator.pop(context);
     } catch (e) {

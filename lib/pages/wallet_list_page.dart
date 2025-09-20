@@ -9,10 +9,12 @@ import '../models/wallet_entry.dart';
 import '../services/tron_client.dart';
 import '../services/usdt_service.dart';
 import '../services/email_share.dart';
+import '../services/account_monitor_service.dart';
 
 import 'wallet_create_page.dart';
 import 'wallet_detail_page.dart';
 import 'settings_page.dart';
+import 'wallet_private_key_import_page.dart';
 
 class WalletListPage extends StatefulWidget {
   const WalletListPage({super.key});
@@ -43,6 +45,24 @@ class _WalletListPageState extends State<WalletListPage> {
     final d = s.get('default_balances') as Map?;
     _defaultUsdt = d?['usdt'] as String?;
     _defaultTrx = d?['trx'] as String?;
+
+    // 初始化并启动账户监控服务
+    _initializeAccountMonitor();
+  }
+
+  Future<void> _initializeAccountMonitor() async {
+    try {
+      final monitorService = AccountMonitorService();
+      // 检查并请求通知权限
+      final hasPermission = await monitorService.checkNotificationPermission();
+      if (!hasPermission) {
+        await monitorService.requestNotificationPermission();
+      }
+      // 启动监控服务
+      await monitorService.startMonitoring();
+    } catch (e) {
+      print('初始化账户监控服务失败: $e');
+    }
   }
 
   @override
@@ -54,12 +74,18 @@ class _WalletListPageState extends State<WalletListPage> {
       appBar: AppBar(
         title: const Text('我的钱包'),
         actions: [
+          // 顶部导航栏按钮组
           IconButton(
-            tooltip: '新增钱包',
-            icon: const Icon(Icons.add),
+            tooltip: '备份全部钱包',
+            icon: const Icon(Icons.backup),
+            onPressed: _exportAllToEmail,
+          ),
+          IconButton(
+            tooltip: '导入钱包',
+            icon: const Icon(Icons.key),
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const WalletCreatePage()),
+              MaterialPageRoute(builder: (_) => const WalletPrivateKeyImportPage()),
             ),
           ),
           IconButton(
@@ -69,6 +95,20 @@ class _WalletListPageState extends State<WalletListPage> {
               context,
               MaterialPageRoute(builder: (_) => const SettingsPage()),
             ),
+          ),
+        ],
+      ),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton(
+            heroTag: 'create_new',
+            child: const Icon(Icons.add),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const WalletCreatePage()),
+            ),
+            tooltip: '创建新钱包',
           ),
         ],
       ),
@@ -424,6 +464,24 @@ class _WalletListPageState extends State<WalletListPage> {
   // 下拉或按钮刷新：总资产 + 默认余额
   Future<void> _refreshAll(
       List<dynamic> keys, WalletEntry? defaultWallet) async {
+    // 当钱包列表大于3个地址时，提示用户配置API Key
+    if (keys.length > 3) {
+      final settings = Hive.box('settings');
+      final apiKey = settings.get('trongrid_api_key') as String?;
+      
+      if (apiKey == null || apiKey.isEmpty) {
+        // 显示一个不影响操作的提示
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('需要配置apikey后再使用多地址刷新，否则可能无法正常获取到钱余额'),
+              duration: Duration(seconds: 4),
+            )
+          );
+        }
+      }
+    }
+    
     await Future.wait([
       _refreshTotals(keys),
       if (defaultWallet != null) _refreshDefaultBalances(defaultWallet),
@@ -592,6 +650,96 @@ class _WalletListPageState extends State<WalletListPage> {
         setState(() {
           // 如果有加载状态变量，可以在这里重置
         });
+      }
+    }
+  }
+
+  // ================== 备份全部钱包到邮件 ==================
+
+  Future<void> _exportAllToEmail() async {
+    try {
+      final settings = Hive.box('settings');
+      final backupEmail = (settings.get('backup_email') as String?)?.trim();
+      if (backupEmail == null || backupEmail.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('请先在设置中配置备份邮箱'))
+          );
+        }
+        return;
+      }
+
+      // 显示二次确认对话框
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('确认备份全部钱包'),
+          content: const Text('此操作将把所有钱包的加密信息发送到您的备份邮箱。\n\n重要提示：\n- 请确保您已设置强密码保护钱包\n- 请妥善保管您的备份邮箱账号\n- 此操作不会暴露您的明文私钥'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('确认备份'),
+            ),
+          ],
+        ),
+      ) ?? false;
+
+      if (!confirm) return;
+
+      // 显示加载指示器
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('正在准备备份...'))
+        );
+      }
+
+      final walletsBox = Hive.box('wallets');
+      final keys = walletsBox.keys.toList();
+      
+      if (keys.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('没有可备份的钱包'))
+          );
+        }
+        return;
+      }
+
+      // 导出所有钱包为JSON
+      final list = <Map<String, dynamic>>[];
+      for (final k in keys) {
+        final e = WalletEntry.tryFrom(walletsBox.get(k));
+        if (e != null) {
+          list.add(e.toJson());
+        }
+      }
+
+      final allWalletsJson = jsonEncode({'version': 1, 'entries': list, 'exportTime': DateTime.now().toIso8601String()});
+      final data = utf8.encode(allWalletsJson);
+      final filename = 'all_wallets_backup_${DateTime.now().millisecondsSinceEpoch}.json';
+
+      await EmailShare.sendWalletBackup(
+        to: backupEmail,
+        subject: '全部钱包备份 - ${DateTime.now().toLocal().toString().split('.').first}',
+        textBody: '这是您的全部钱包备份文件，请妥善保管。\n\n共 ${list.length} 个钱包\n创建时间: ${DateTime.now().toLocal().toString().split('.').first}\n\n请勿回复此邮件。',
+        filename: filename,
+        data: data,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('全部钱包备份已发送到邮箱'))
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('发送失败: $e'))
+        );
       }
     }
   }

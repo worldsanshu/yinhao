@@ -145,8 +145,8 @@ String? extractTronBase58(String input) {
   final s = input.trim();
 
   // 原始 Base58
-  if (RegExp(r'^[T][1-9A-HJ-NP-Za-km-z]{25,48}\$').hasMatch(s)) {
-    return s.split(RegExp(r'\s|\$')).first;
+  if (RegExp(r'^[T][1-9A-HJ-NP-Za-km-z]{25,48}').hasMatch(s)) {
+    return s.split(RegExp(r'\s')).first;
   }
 
   // tron:XXXX[?amount=...]

@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_secure_storage: ^9.0.0
+  package_info_plus: ^8.0.0
 
   hive: ^2.2.3
   hive_flutter: ^1.1.0
@@ -27,18 +28,26 @@ dependencies:
   convert: ^3.1.1
   mobile_scanner: ^3.5.7   # 二维码/条码扫描
   permission_handler: ^11.3.1
+  flutter_local_notifications: ^17.0.0
   url_launcher: ^6.3.0
   webview_flutter: ^4.8.0
   mailer: ^6.5.0
   http_parser: ^4.1.2
   local_auth: ^2.1.7  # 或兼容你当前 Flutter 版本的最新 2.x
   flutter_launcher_icons: ^0.13.1
+  # 使用日志打印代替通知功能，移除不需要的依赖
+  file_picker: ^8.0.0
+  bip39: ^1.0.6
+  bip32: ^2.0.0
+
 
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  build_runner: ^2.4.11
+  hive_generator: ^2.0.1
 
 flutter:
   uses-material-design: true

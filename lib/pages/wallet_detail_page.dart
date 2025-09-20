@@ -2,12 +2,18 @@ import 'dart:async';
 import 'package:hive/hive.dart';
 // lib/pages/wallet_detail_page.dart
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:cryptography/cryptography.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:local_auth/local_auth.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+
+import '../services/secure_store.dart';
 
 import '../models/wallet_entry.dart';
 import '../services/tron_client.dart';
@@ -31,11 +37,168 @@ class _WalletDetailPageState extends State<WalletDetailPage> {
   int _secretTap = 0;
   Timer? _tapResetTimer;
   bool _showDeleteBtn = false;
+  final _auth = LocalAuthentication();
+  bool _biometricAvailable = false;
+  List<BiometricType> _biometricTypes = const [];
+
+  // --- 身份验证方法 --- 
+  Future<bool> _authenticate() async {
+    // 首先尝试生物识别
+    if (_biometricAvailable) {
+      try {
+        final ok = await _auth.authenticate(
+          localizedReason: Platform.isIOS
+              ? '使用 Face ID / Touch ID 验证身份' 
+              : (_biometricTypes.contains(BiometricType.fingerprint)
+                  ? '使用指纹验证身份'
+                  : '使用面部验证身份'),
+          options: const AuthenticationOptions(
+            biometricOnly: false, // 修改为false，允许回退到设备密码或应用密码
+            stickyAuth: true,
+            useErrorDialogs: true,
+            sensitiveTransaction: true,
+          ),
+        );
+        if (ok) return true;
+      } catch (e) {
+        print('生物识别失败: $e');
+      }
+    }
+
+    // 生物识别失败或不可用，回退到应用密码验证
+    try {
+      final (hashStored, saltB64) = await SecureStore.readPinHashAndSalt();
+      if (hashStored != null && saltB64 != null) {
+        // 显示密码输入对话框
+        final pin = await _showPinDialog();
+        if (pin == null || pin.isEmpty) return false;
+
+        // 验证PIN
+        final salt = base64Decode(saltB64);
+        final hash = await _pbkdf2Hash(pin, salt);
+        return hash == hashStored;
+      } else {
+        // 如果读取失败或没有设置密码，尝试使用设备密码
+        try {
+          final deviceAuthOk = await _auth.authenticate(
+            localizedReason: '使用设备密码验证身份',
+            options: const AuthenticationOptions(
+              biometricOnly: false,
+              stickyAuth: true,
+              useErrorDialogs: true,
+              sensitiveTransaction: true,
+            ),
+          );
+          return deviceAuthOk;
+        } catch (deviceAuthError) {
+          print('设备密码验证失败: $deviceAuthError');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('身份验证失败，请稍后再试')),
+            );
+          }
+          return false;
+        }
+      }
+    } catch (e) {
+      print('读取密码哈希失败: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('身份验证系统异常，请稍后再试')),
+        );
+      }
+      return false;
+    }
+  }
+
+  Future<String?> _showPinDialog() {
+    final pinCtrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('验证身份'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('请输入解锁密码以继续删除操作'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: pinCtrl,
+              keyboardType: TextInputType.number,
+              obscureText: true,
+              maxLength: 32,
+              decoration: const InputDecoration(
+                hintText: '至少 4 位数字/字母',
+                border: OutlineInputBorder(),
+              ),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, pinCtrl.text.trim()),
+            child: const Text('确认'),
+          ),
+        ],
+      ),
+    ).whenComplete(() => pinCtrl.dispose());
+  }
+
+  // --- PBKDF2(SHA-256) --- 
+  Future<String> _pbkdf2Hash(String pin, Uint8List salt) async {
+    final algo = Pbkdf2(
+      macAlgorithm: Hmac.sha256(),
+      iterations: 120000,
+      bits: 256,
+    );
+    final key = await algo.deriveKey(
+      secretKey: SecretKey(utf8.encode(pin)),
+      nonce: salt,
+    );
+    final bytes = await key.extractBytes();
+    return _toHex(bytes);
+  }
+
+  String _toHex(List<int> bytes) {
+    const hex = '0123456789abcdef';
+    final out = StringBuffer();
+    for (final b in bytes) {
+      out.write(hex[(b >> 4) & 0x0f]);
+      out.write(hex[b & 0x0f]);
+    }
+    return out.toString();
+  }
 
   @override
   void dispose() {
     _tapResetTimer?.cancel();
     super.dispose();
+  }
+
+  // 检查设备是否支持生物识别
+  Future<void> _checkBiometrics() async {
+    try {
+      // 检查是否可以进行生物识别认证
+      final canAuthenticate = await _auth.canCheckBiometrics;
+      // 检查是否可以使用设备认证（生物识别或PIN等）
+      final isDeviceSupported = await _auth.isDeviceSupported();
+      
+      _biometricAvailable = canAuthenticate || isDeviceSupported;
+      
+      // 获取支持的生物识别类型
+      if (_biometricAvailable) {
+        _biometricTypes = await _auth.getAvailableBiometrics();
+      }
+    } catch (e) {
+      print('检查生物识别失败: $e');
+      _biometricAvailable = false;
+    }
   }
 
   /// 连续点击“钱包详情”统计，1.2秒内点满5次就显示删除按钮
@@ -90,6 +253,14 @@ class _WalletDetailPageState extends State<WalletDetailPage> {
         ) ??
         false;
     if (!ok2 || !mounted) return;
+
+    // 添加身份验证
+    final isAuthenticated = await _authenticate();
+    if (!isAuthenticated || !mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('身份验证失败，无法删除钱包')));
+      return;
+    }
 
     try {
       await _deleteWalletById(widget.walletId);
@@ -170,6 +341,9 @@ class _WalletDetailPageState extends State<WalletDetailPage> {
   @override
   void initState() {
     super.initState();
+    // 检查生物识别可用性
+    _checkBiometrics();
+    
     // 可选：读取缓存，首屏显示更快（若之前有缓存）
     final cache = (Hive.box('settings')
             .get('detail_balances_${widget.walletId}') as Map?) ??

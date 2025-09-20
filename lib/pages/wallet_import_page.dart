@@ -171,7 +171,6 @@ class _WalletImportPageState extends State<WalletImportPage> {
                 border: OutlineInputBorder(),
                 hintText: '给此钱包起个名字，方便识别',
               ),
-              initialValue: null, // 用 controller，不要 initialValue
             ),
             if (!hasName) const SizedBox(height: 4),
             if (!hasName)
@@ -413,6 +412,13 @@ class _WalletImportPageState extends State<WalletImportPage> {
     }
 
     if (decoded is Map) {
+      // 检查是否为新的备份格式（包含version和entries字段）
+      if (decoded.containsKey('version') && decoded.containsKey('entries') && decoded['entries'] is List) {
+        return (decoded['entries'] as List)
+            .whereType<Map>()
+            .map((m) => Map<String, dynamic>.from(m))
+            .toList();
+      }
       return [Map<String, dynamic>.from(decoded)];
     }
 
