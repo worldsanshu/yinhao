@@ -1,7 +1,7 @@
 name: usdt_vault
 description: "Offline-first TRON USDT wallet with 3-password encryption, local biometrics, and email export."
 publish_to: "none"
-version: 0.2.0+2
+version: 0.2.1+1
 
 environment:
   sdk: ">=3.0.0 <4.0.0"

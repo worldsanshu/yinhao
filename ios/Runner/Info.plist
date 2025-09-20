@@ -27,8 +27,7 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSCameraUsageDescription</key>
-	<string>用于扫描二维码</string>
+
 	<key>NSFaceIDUsageDescription</key>
 	<string>我们需要使用 Face ID 来验证你的身份，以确保账户安全。</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
@@ -43,6 +42,20 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- 相机 -->
+    <key>NSCameraUsageDescription</key>
+    <string>此应用需要使用相机扫描二维码以完成钱包转账。</string>
+
+    <!-- 相册（读写） -->
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>此应用需要保存二维码或备份文件到相册。</string>
+
+    <!-- 相册：必须有 -->
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>此应用需要访问您的照片库，用于保存或导入钱包二维码。</string>
+
+
+
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
